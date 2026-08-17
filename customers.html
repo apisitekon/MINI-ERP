@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ลูกค้า — Thai Freelance ERP Lite</title>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="styles/design-system.css" />
+  <style>
+    .customer-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .customer-card {
+      background: var(--color-surface-container-lowest);
+      border: 1px solid var(--color-workspace-border);
+      border-radius: var(--radius-xl);
+      padding: 20px;
+      box-shadow: var(--shadow-card);
+      transition: box-shadow var(--transition-base), transform var(--transition-fast);
+      cursor: pointer;
+    }
+    .customer-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); transform: translateY(-1px); }
+    .customer-avatar {
+      width: 44px; height: 44px; border-radius: var(--radius-full);
+      background: var(--color-primary-fixed);
+      color: var(--color-primary);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .customer-name { font-weight: 700; font-size: 15px; color: var(--color-on-surface); }
+    .customer-meta { font-size: 12px; color: var(--color-secondary); margin-top: 4px; line-height: 1.6; }
+    .customer-taxid {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+      background: var(--color-surface-container); color: var(--color-secondary);
+      padding: 2px 8px; border-radius: var(--radius-full); margin-top: 6px;
+    }
+    .card-actions { display: flex; gap: 6px; margin-top: 14px; }
+
+    /* Form grid */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width:480px) { .form-grid { grid-template-columns: 1fr; } }
+    .form-grid .full { grid-column: 1 / -1; }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <span class="material-symbols-outlined" style="font-size:24px;color:var(--color-primary);">receipt_long</span>
+      </div>
+      <div class="sidebar-brand">
+        <div class="brand-name">Thai ERP</div>
+        <div class="brand-sub" id="sidebar-user-name">Freelance Edition</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <button class="btn-new-invoice" onclick="openAddModal()">
+      <span class="material-symbols-outlined">person_add</span>
+      เพิ่มลูกค้าใหม่
+    </button>
+    <div class="sidebar-footer">
+      <button class="nav-item w-full" id="btn-signout" style="text-align:left;">
+        <span class="material-symbols-outlined">logout</span>ออกจากระบบ
+      </button>
+    </div>
+  </aside>
+
+  <header class="mobile-header">
+    <span class="brand">ลูกค้า</span>
+    <button class="icon-btn" onclick="openAddModal()">
+      <span class="material-symbols-outlined" style="font-size:22px;">person_add</span>
+    </button>
+  </header>
+
+  <main class="main-content">
+    <div class="content-inner">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">ลูกค้า</h1>
+          <p class="page-subtitle">จัดการข้อมูลลูกค้าและ Tax ID</p>
+        </div>
+        <div class="page-actions desktop-only">
+          <button class="btn btn-primary" onclick="openAddModal()">
+            <span class="material-symbols-outlined" style="font-size:18px;">person_add</span>
+            เพิ่มลูกค้าใหม่
+          </button>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="search-bar" style="margin-bottom:20px;">
+        <div class="search-input-wrap">
+          <span class="material-symbols-outlined">search</span>
+          <input class="form-input" type="text" id="search-input" placeholder="ค้นหาชื่อ หรือ Tax ID..." />
+        </div>
+      </div>
+
+      <!-- Stats bar -->
+      <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
+        <div style="background:var(--color-primary-fixed);border-radius:var(--radius-lg);padding:10px 16px;display:flex;align-items:center;gap:8px;">
+          <span class="material-symbols-outlined" style="color:var(--color-primary);font-size:20px;">group</span>
+          <span style="font-size:13px;font-weight:600;color:var(--color-primary);">
+            ลูกค้าทั้งหมด <strong id="customer-count">0</strong><span id="customer-limit-label"></span> ราย
+          </span>
+        </div>
+      </div>
+
+      <!-- Customer Grid -->
+      <div class="customer-grid" id="customer-grid">
+        <div style="grid-column:1/-1;text-align:center;padding:48px;">
+          <div class="spinner" style="margin:0 auto;"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<button class="fab" onclick="openAddModal()">
+  <span class="material-symbols-outlined" style="font-size:24px;">person_add</span>
+</button>
+<nav class="bottom-nav" id="bottom-nav"></nav>
+<div id="toast-container" class="toast-container"></div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-backdrop" id="customer-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">เพิ่มลูกค้าใหม่</span>
+      <button class="modal-close" onclick="closeModal('customer-modal')">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label class="form-label" for="f-name">ชื่อบริษัท/ลูกค้า *</label>
+          <input class="form-input" type="text" id="f-name" placeholder="เช่น Acme Corp Thailand" required />
+        </div>
+        <div class="form-group full">
+          <label class="form-label" for="f-taxid">Tax ID (เลขที่ผู้เสียภาษี)</label>
+          <input class="form-input" type="text" id="f-taxid" placeholder="X-XXXX-XXXXX-XX-X" maxlength="17" oninput="this.value=formatTaxId(this.value)" />
+        </div>
+        <div class="form-group full">
+          <label class="form-label" for="f-address">ที่อยู่</label>
+          <textarea class="form-input" id="f-address" rows="2" placeholder="123 ถนนสุขุมวิท กรุงเทพฯ"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="f-email">อีเมล</label>
+          <input class="form-input" type="email" id="f-email" placeholder="finance@company.co.th" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="f-phone">เบอร์โทร</label>
+          <input class="form-input" type="tel" id="f-phone" placeholder="02-xxx-xxxx" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('customer-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="btn-save-customer" onclick="saveCustomer()">
+        <span class="material-symbols-outlined" style="font-size:18px;">save</span>
+        บันทึก
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-backdrop" id="delete-modal">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-header">
+      <span class="modal-title">ยืนยันการลบ</span>
+      <button class="modal-close" onclick="closeModal('delete-modal')">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <p style="color:var(--color-secondary);font-size:14px;margin-bottom:4px;">คุณต้องการลบลูกค้า <strong id="delete-name"></strong> ใช่หรือไม่?</p>
+    <p style="font-size:12px;color:var(--color-error);">การลบจะไม่ส่งผลต่อเอกสารที่สร้างไว้แล้ว</p>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('delete-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="btn-confirm-delete" style="background:var(--color-error);">
+        <span class="material-symbols-outlined" style="font-size:18px;">delete</span> ลบ
+      </button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { requireAuth, signOutUser, showToast, renderNav, navigate, openModal, closeModal, formatTaxId } from './js/app.js';
+import { getCustomers, addCustomer, updateCustomer, deleteCustomer, getPlanUsage } from './js/firebase-config.js';
+
+window.closeModal = closeModal;
+window.openModal = openModal;
+window.formatTaxId = formatTaxId;
+window.navigate = navigate;
+
+let currentUser = null;
+let customers = [];
+let editingId = null;
+let deletingId = null;
+let planUsage = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderNav('customers');
+  document.getElementById('btn-signout')?.addEventListener('click', async () => {
+    await signOutUser(); window.location.href = 'index.html';
+  });
+  document.getElementById('search-input').addEventListener('input', renderGrid);
+  document.querySelectorAll('.modal-backdrop').forEach(m => {
+    m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
+  });
+  document.getElementById('btn-confirm-delete').addEventListener('click', doDelete);
+});
+
+requireAuth(async (user) => {
+  currentUser = user;
+  document.getElementById('sidebar-user-name').textContent = user.displayName || '';
+  await loadCustomers();
+});
+
+async function loadCustomers() {
+  [customers, planUsage] = await Promise.all([
+    getCustomers(currentUser.uid),
+    getPlanUsage(currentUser.uid),
+  ]);
+  renderGrid();
+}
+
+function renderGrid() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const filtered = customers.filter(c =>
+    c.name?.toLowerCase().includes(q) || c.taxId?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q)
+  );
+
+  document.getElementById('customer-count').textContent = filtered.length;
+  if (planUsage) {
+    const limitLabel = document.getElementById('customer-limit-label');
+    limitLabel.textContent = ` / ${planUsage.customerLimit}`;
+    limitLabel.style.color = customers.length >= planUsage.customerLimit ? 'var(--color-error)' : '';
+  }
+  const grid = document.getElementById('customer-grid');
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div style="grid-column:1/-1;" class="empty-state">
+      <span class="material-symbols-outlined">group</span>
+      <h3 class="empty-state-title">ยังไม่มีลูกค้า</h3>
+      <p class="empty-state-desc">เพิ่มลูกค้าคนแรกของคุณเพื่อเริ่มออกเอกสาร</p>
+      <button class="btn btn-primary" onclick="openAddModal()">
+        <span class="material-symbols-outlined" style="font-size:18px;">person_add</span>
+        เพิ่มลูกค้า
+      </button>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(c => {
+    const initials = c.name?.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase() || '?';
+    return `
+      <div class="customer-card" onclick="openEditModal('${c.id}')">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;">
+          <div class="customer-avatar">${initials}</div>
+          <div style="min-width:0;flex:1;">
+            <div class="customer-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.name}</div>
+            ${c.taxId ? `<div class="customer-taxid"><span class="material-symbols-outlined" style="font-size:12px;">badge</span>${c.taxId}</div>` : ''}
+          </div>
+        </div>
+        <div class="customer-meta">
+          ${c.email ? `<span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle;">mail</span> ${c.email}<br>` : ''}
+          ${c.phone ? `<span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle;">phone</span> ${c.phone}<br>` : ''}
+          ${c.address ? `<span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle;">place</span> ${c.address}` : ''}
+        </div>
+        <div class="card-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-secondary" style="flex:1;font-size:12px;padding:6px 10px;" onclick="openEditModal('${c.id}')">
+            <span class="material-symbols-outlined" style="font-size:14px;">edit</span> แก้ไข
+          </button>
+          <button class="btn" style="padding:6px 10px;color:var(--color-error);border:1px solid var(--color-workspace-border);" onclick="openDeleteModal('${c.id}','${esc(c.name)}')">
+            <span class="material-symbols-outlined" style="font-size:14px;">delete</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+window.openAddModal = function() {
+  if (planUsage && customers.length >= planUsage.customerLimit) {
+    showToast(`ถึงขีดจำกัดแพ็กเกจ (${planUsage.customerLimit}/${planUsage.customerLimit} ลูกค้า) แล้ว ไปที่หน้า "แพ็กเกจ" เพื่ออัปเกรด`, 'error');
+    return;
+  }
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'เพิ่มลูกค้าใหม่';
+  ['f-name','f-taxid','f-address','f-email','f-phone'].forEach(id => document.getElementById(id).value = '');
+  openModal('customer-modal');
+  document.getElementById('f-name').focus();
+};
+
+window.openEditModal = function(id) {
+  editingId = id;
+  const c = customers.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('modal-title').textContent = 'แก้ไขข้อมูลลูกค้า';
+  document.getElementById('f-name').value    = c.name    || '';
+  document.getElementById('f-taxid').value   = c.taxId   || '';
+  document.getElementById('f-address').value = c.address || '';
+  document.getElementById('f-email').value   = c.email   || '';
+  document.getElementById('f-phone').value   = c.phone   || '';
+  openModal('customer-modal');
+};
+
+window.saveCustomer = async function() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { showToast('กรุณากรอกชื่อลูกค้า', 'error'); return; }
+  const data = {
+    name,
+    taxId:   document.getElementById('f-taxid').value.trim(),
+    address: document.getElementById('f-address').value.trim(),
+    email:   document.getElementById('f-email').value.trim(),
+    phone:   document.getElementById('f-phone').value.trim(),
+  };
+  const btn = document.getElementById('btn-save-customer');
+  btn.disabled = true;
+  try {
+    if (editingId) {
+      await updateCustomer(editingId, data);
+      showToast('✅ อัปเดตข้อมูลลูกค้าแล้ว');
+      closeModal('customer-modal');
+      await loadCustomers();
+      return;
+    }
+
+    const result = await addCustomer(currentUser.uid, data);
+    showToast('✅ เพิ่มลูกค้าใหม่แล้ว');
+    closeModal('customer-modal');
+    await loadCustomers();
+
+    if (result?.id) {
+      window.location.href = `document-editor.html?customerId=${encodeURIComponent(result.id)}&docType=QUOTATION`;
+    }
+  } catch(e) {
+    if (e.message === 'LIMIT_REACHED_CUSTOMER' || e.code === 'permission-denied') {
+      showToast('ถึงขีดจำกัดแพ็กเกจของคุณแล้ว กรุณาอัปเกรดที่หน้า "แพ็กเกจ"', 'error');
+      await loadCustomers();
+    } else {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    }
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+window.openDeleteModal = function(id, name) {
+  deletingId = id;
+  document.getElementById('delete-name').textContent = name;
+  openModal('delete-modal');
+};
+
+async function doDelete() {
+  if (!deletingId) return;
+  try {
+    await deleteCustomer(deletingId);
+    showToast('🗑️ ลบลูกค้าแล้ว');
+    closeModal('delete-modal');
+    await loadCustomers();
+  } catch(e) { showToast('เกิดข้อผิดพลาด', 'error'); }
+}
+
+function esc(s) { return (s||'').replace(/'/g,"\\'"); }
+
+import { onAuthChange } from './js/firebase-config.js';
+onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+</script>
+</body>
+</html>

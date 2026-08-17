@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>แก้ไขเอกสาร — Thai Freelance ERP Lite</title>
+  <meta name="description" content="สร้างและแก้ไขใบแจ้งหนี้ ใบเสนอราคา — คำนวณ WHT 3% อัตโนมัติ" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="styles/design-system.css" />
+  <style>
+    /* Editor-specific styles */
+    .editor-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    @media (min-width: 1024px) {
+      .editor-layout { grid-template-columns: 1fr 340px; gap: 24px; }
+    }
+
+    .editor-card {
+      background: var(--color-surface-container-lowest);
+      border: 1px solid var(--color-workspace-border);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      box-shadow: var(--shadow-card);
+    }
+    .editor-card-title {
+      font-size: 14px; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--color-secondary);
+      margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .editor-card-title .material-symbols-outlined { font-size: 18px; color: var(--color-primary); }
+
+    /* Line Items Table */
+    .line-items-wrap { overflow-x: auto; }
+    .line-items-table { width: 100%; border-collapse: collapse; min-width: 580px; }
+    .line-items-table th {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--color-secondary); padding: 8px 10px;
+      border-bottom: 1px solid var(--color-workspace-border);
+      text-align: left; white-space: nowrap;
+    }
+    .line-items-table th.text-right { text-align: right; }
+    .line-items-table td { padding: 8px 10px; vertical-align: middle; }
+    .line-items-table tbody tr:hover { background: var(--color-surface-container-low); }
+    .line-items-table tbody tr:hover .remove-row-btn { opacity: 1; }
+
+    .line-input {
+      padding: 6px 10px; border: 1px solid transparent;
+      border-radius: var(--radius-md); font-family: var(--font-family);
+      font-size: 14px; color: var(--color-on-surface);
+      background: transparent; width: 100%; transition: all var(--transition-fast);
+    }
+    .line-input:hover { border-color: var(--color-outline-variant); background: var(--color-surface-container-lowest); }
+    .line-input:focus { border-color: var(--color-primary); background: var(--color-surface-container-lowest); outline: none; box-shadow: 0 0 0 3px rgba(70,72,212,0.1); }
+    .line-input.text-right { text-align: right; }
+
+    .remove-row-btn {
+      width: 28px; height: 28px; border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--color-error); opacity: 0;
+      transition: opacity var(--transition-fast), background var(--transition-fast);
+    }
+    .remove-row-btn:hover { background: rgba(186,26,26,0.1); }
+
+    /* Summary Card */
+    .summary-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(226,232,240,0.5);
+      font-size: 14px;
+    }
+    .summary-row:last-child { border-bottom: none; }
+    .summary-row .label { color: var(--color-secondary); }
+    .summary-row .value { font-weight: 600; color: var(--color-on-surface); font-variant-numeric: tabular-nums; }
+    .summary-row--total { padding-top: 14px; margin-top: 4px; border-top: 2px solid var(--color-workspace-border) !important; border-bottom: none; }
+    .summary-row--total .label { font-size: 15px; font-weight: 700; color: var(--color-on-surface); }
+    .summary-row--total .value { font-size: 20px; font-weight: 700; color: var(--color-primary); }
+    .summary-row--wht .label, .summary-row--wht .value { color: var(--color-wht-accent); }
+
+    /* WHT Toggle */
+    .wht-toggle-wrap {
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(139,92,246,0.07);
+      border: 1px solid rgba(139,92,246,0.2);
+      border-radius: var(--radius-lg);
+      padding: 10px 14px; margin-bottom: 16px;
+    }
+    .wht-toggle-label { font-size: 13px; font-weight: 600; color: var(--color-wht-accent); }
+    .toggle {
+      width: 44px; height: 24px; border-radius: 12px;
+      background: var(--color-surface-container); border: 1px solid var(--color-outline-variant);
+      position: relative; cursor: pointer; transition: background var(--transition-fast);
+      flex-shrink: 0;
+    }
+    .toggle.on { background: var(--color-wht-accent); border-color: var(--color-wht-accent); }
+    .toggle::after {
+      content: ''; position: absolute;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: white; top: 2px; left: 2px;
+      transition: transform var(--transition-fast);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .toggle.on::after { transform: translateX(20px); }
+
+    /* Action Bar (sticky) */
+    .action-bar {
+      position: sticky; bottom: 0;
+      background: var(--color-surface-container-lowest);
+      border-top: 1px solid var(--color-workspace-border);
+      padding: 14px var(--gutter);
+      display: flex; gap: 12px; align-items: center;
+      z-index: 30; margin-left: calc(-1 * var(--gutter));
+      margin-right: calc(-1 * var(--gutter));
+      box-shadow: 0 -4px 16px rgba(0,0,0,0.06);
+    }
+    @media (max-width:767px) { .action-bar { padding: 12px var(--margin-mobile); } }
+    .action-bar .spacer { flex: 1; }
+
+    /* Customer quick-select */
+    .customer-chip {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border-radius: var(--radius-lg);
+      background: var(--color-primary-fixed); color: var(--color-primary);
+      font-size: 13px; font-weight: 600;
+    }
+    .customer-chip .material-symbols-outlined { font-size: 16px; }
+
+    /* Doc number badge */
+    .doc-number-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; font-weight: 600;
+      color: var(--color-secondary);
+      background: var(--color-surface-container);
+      padding: 4px 12px; border-radius: var(--radius-full);
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <span class="material-symbols-outlined" style="font-size:24px;color:var(--color-primary);">receipt_long</span>
+      </div>
+      <div class="sidebar-brand">
+        <div class="brand-name">Thai ERP</div>
+        <div class="brand-sub">Freelance Edition</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <button class="btn-new-invoice" onclick="addNewDoc()">
+      <span class="material-symbols-outlined">add</span>
+      เอกสารใหม่
+    </button>
+    <div class="sidebar-footer">
+      <button class="nav-item w-full" id="btn-signout" style="text-align:left;">
+        <span class="material-symbols-outlined">logout</span>
+        <span>ออกจากระบบ</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Mobile Header -->
+  <header class="mobile-header">
+    <a href="documents.html" class="icon-btn" aria-label="กลับ">
+      <span class="material-symbols-outlined" style="font-size:22px;">arrow_back</span>
+    </a>
+    <span class="brand" id="mobile-header-title">เอกสารใหม่</span>
+    <div style="width:36px;"></div>
+  </header>
+
+  <main class="main-content">
+    <div class="content-inner">
+
+      <!-- Page Header -->
+      <div class="page-header">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <a href="documents.html" class="btn btn-ghost btn-icon desktop-only" style="flex-shrink:0;">
+            <span class="material-symbols-outlined" style="font-size:20px;">arrow_back</span>
+          </a>
+          <div>
+            <h1 class="page-title" id="page-title">สร้างเอกสารใหม่</h1>
+            <p id="doc-number-wrap" style="margin-top:4px;"></p>
+          </div>
+        </div>
+        <div class="page-actions desktop-only" id="status-badge-wrap"></div>
+      </div>
+
+      <div class="editor-layout">
+
+        <!-- LEFT: Main Editor -->
+        <div style="display:flex;flex-direction:column;gap:20px;">
+
+          <!-- Card: Document Info -->
+          <div class="editor-card">
+            <div class="editor-card-title">
+              <span class="material-symbols-outlined">info</span>
+              ข้อมูลเอกสาร
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              <div class="form-group" style="grid-column:1/-1;">
+                <label class="form-label" for="doc-type">ประเภทเอกสาร</label>
+                <select class="form-select" id="doc-type" onchange="onTypeChange()">
+                  <option value="INVOICE">ใบแจ้งหนี้ (Invoice)</option>
+                  <option value="QUOTATION">ใบเสนอราคา (Quotation)</option>
+                  <option value="RECEIPT">ใบเสร็จรับเงิน (Receipt)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="doc-date">วันที่เอกสาร</label>
+                <input class="form-input" type="date" id="doc-date" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="doc-due">วันครบกำหนด</label>
+                <input class="form-input" type="date" id="doc-due" />
+              </div>
+              <div class="form-group" style="grid-column:1/-1;">
+                <label class="form-label" for="doc-notes">หมายเหตุ (ไม่บังคับ)</label>
+                <textarea class="form-input" id="doc-notes" rows="2" placeholder="เช่น รวม VAT แล้ว / ราคาไม่รวม VAT"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card: Customer -->
+          <div class="editor-card">
+            <div class="editor-card-title">
+              <span class="material-symbols-outlined">person</span>
+              ลูกค้า
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="customer-select">เลือกลูกค้า</label>
+              <select class="form-select" id="customer-select" onchange="onCustomerSelect()">
+                <option value="">— เลือกลูกค้า —</option>
+              </select>
+            </div>
+            <div id="customer-details" style="display:none;margin-top:14px;padding:14px;background:var(--color-surface-container-low);border-radius:var(--radius-lg);font-size:13px;line-height:1.7;color:var(--color-secondary);">
+            </div>
+            <div style="margin-top:10px;">
+              <a href="customers.html" class="btn btn-ghost" style="padding:6px 12px;font-size:13px;">
+                <span class="material-symbols-outlined" style="font-size:16px;">add</span>
+                เพิ่มลูกค้าใหม่
+              </a>
+            </div>
+          </div>
+
+          <!-- Card: Line Items -->
+          <div class="editor-card">
+            <div class="editor-card-title">
+              <span class="material-symbols-outlined">list_alt</span>
+              รายการสินค้า/บริการ
+            </div>
+            <div class="line-items-wrap">
+              <table class="line-items-table">
+                <thead>
+                  <tr>
+                    <th style="width:40%;">รายการ</th>
+                    <th style="width:15%;" class="text-right">จำนวน</th>
+                    <th style="width:20%;" class="text-right">ราคาต่อหน่วย</th>
+                    <th style="width:20%;" class="text-right">รวม</th>
+                    <th style="width:5%;"></th>
+                  </tr>
+                </thead>
+                <tbody id="line-items-tbody">
+                  <!-- Rows rendered by JS -->
+                </tbody>
+              </table>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn btn-secondary" onclick="addLineItem()" style="font-size:13px;padding:7px 14px;">
+                <span class="material-symbols-outlined" style="font-size:16px;">add</span>
+                เพิ่มรายการ
+              </button>
+              <button class="btn btn-ghost" onclick="openProductPicker()" style="font-size:13px;padding:7px 14px;">
+                <span class="material-symbols-outlined" style="font-size:16px;">inventory_2</span>
+                เลือกจากรายการบริการ
+              </button>
+            </div>
+          </div>
+
+        </div>
+        <!-- END LEFT -->
+
+        <!-- RIGHT: Summary -->
+        <div style="display:flex;flex-direction:column;gap:20px;">
+
+          <!-- Summary Card -->
+          <div class="editor-card" style="position:sticky;top:24px;">
+            <div class="editor-card-title">
+              <span class="material-symbols-outlined">calculate</span>
+              สรุปยอด
+            </div>
+
+            <!-- WHT Toggle -->
+            <div class="wht-toggle-wrap">
+              <div>
+                <div class="wht-toggle-label">
+                  <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">receipt_long</span>
+                  หัก ณ ที่จ่าย (WHT 3%)
+                </div>
+                <div style="font-size:11px;color:var(--color-outline);margin-top:2px;">สำหรับบริการ/ฟรีแลนซ์</div>
+              </div>
+              <div class="toggle on" id="wht-toggle" onclick="toggleWHT()" role="checkbox" aria-checked="true" aria-label="หัก ณ ที่จ่าย 3%"></div>
+            </div>
+
+            <div class="summary-row">
+              <span class="label">ยอดรวมก่อนหัก</span>
+              <span class="value" id="sum-subtotal">THB 0.00</span>
+            </div>
+            <div class="summary-row summary-row--wht" id="wht-row">
+              <span class="label" style="display:flex;align-items:center;gap:4px;">
+                <span class="material-symbols-outlined" style="font-size:14px;">receipt_long</span>
+                หัก ณ ที่จ่าย (3%)
+              </span>
+              <span class="value" id="sum-wht">- THB 0.00</span>
+            </div>
+            <div class="summary-row summary-row--total">
+              <span class="label">ยอดสุทธิ</span>
+              <span class="value" id="sum-net">THB 0.00</span>
+            </div>
+
+            <!-- Actions -->
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:20px;">
+              <button class="btn btn-primary w-full" id="btn-finalize" onclick="finalizeDoc()">
+                <span class="material-symbols-outlined" style="font-size:18px;">send</span>
+                ออกเอกสาร (Pending)
+              </button>
+              <button class="btn btn-secondary w-full" id="btn-save-draft" onclick="saveDraft()">
+                <span class="material-symbols-outlined" style="font-size:18px;">save</span>
+                บันทึกร่าง
+              </button>
+              <button class="btn btn-ghost w-full" id="btn-mark-paid" style="display:none;" onclick="markPaid()">
+                <span class="material-symbols-outlined" style="font-size:18px;">check_circle</span>
+                ทำเครื่องหมายชำระแล้ว
+              </button>
+              <button class="btn btn-ghost w-full" id="btn-print" style="display:none;" onclick="printDoc()">
+                <span class="material-symbols-outlined" style="font-size:18px;">print</span>
+                พิมพ์ / บันทึก PDF
+              </button>
+            </div>
+
+            <!-- Delete (edit mode only) -->
+            <div id="btn-delete-wrap" style="display:none;margin-top:8px;">
+              <button class="btn btn-ghost w-full" onclick="confirmDelete()" style="color:var(--color-error);font-size:13px;padding:8px;">
+                <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+                ลบเอกสาร
+              </button>
+            </div>
+          </div>
+
+        </div>
+        <!-- END RIGHT -->
+
+      </div>
+      <!-- END editor-layout -->
+
+    </div>
+  </main>
+</div>
+
+<!-- Bottom Nav (Mobile) -->
+<nav class="bottom-nav" id="bottom-nav"></nav>
+<div id="toast-container" class="toast-container"></div>
+
+<!-- Product Picker Modal -->
+<div class="modal-backdrop" id="product-modal">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <span class="modal-title">เลือกสินค้า/บริการ</span>
+      <button class="modal-close" onclick="closeModal('product-modal')">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div style="margin-bottom:12px;">
+      <input class="form-input" type="text" id="product-search" placeholder="ค้นหา..." oninput="filterProducts()" />
+    </div>
+    <div id="product-list" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+    </div>
+    <div style="margin-top:12px;">
+      <a href="products.html" class="btn btn-ghost" style="font-size:13px;width:100%;justify-content:center;">
+        <span class="material-symbols-outlined" style="font-size:16px;">add</span>
+        จัดการสินค้า/บริการ
+      </a>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { requireAuth, signOutUser, showToast, formatTHB, statusBadge, renderNav, navigate, calcDocument, openModal, closeModal } from './js/app.js';
+import { getCustomers, getProducts, getDocument, saveDocument, updateDocument, deleteDocument, generateDocNumber, getDocuments, Timestamp } from './js/firebase-config.js';
+
+window.navigate = navigate;
+window.closeModal = closeModal;
+
+let currentUser = null;
+let docId = null;
+let existingDoc = null;
+let customers = [];
+let products = [];
+let allProducts = [];
+let lineItems = [{ name: '', qty: 1, price: 0 }];
+let whtEnabled = true;
+window.lineItems = lineItems;
+
+// ---- Init ----
+document.addEventListener('DOMContentLoaded', async () => {
+  // Set default dates
+  const today = new Date().toISOString().split('T')[0];
+  const due = new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
+  document.getElementById('doc-date').value = today;
+  document.getElementById('doc-due').value = due;
+
+  renderNav('documents');
+  document.getElementById('btn-signout')?.addEventListener('click', async () => {
+    await signOutUser(); window.location.href = 'index.html';
+  });
+
+  // Load doc ID and preset values from URL
+  const params = new URLSearchParams(window.location.search);
+  docId = params.get('id');
+  const presetCustomerId = params.get('customerId');
+  const presetDocType = params.get('docType');
+
+  if (presetDocType) {
+    document.getElementById('doc-type').value = presetDocType;
+    onTypeChange();
+  }
+
+  if (presetCustomerId) {
+    const customerSelect = document.getElementById('customer-select');
+    if ([...customerSelect.options].some(option => option.value === presetCustomerId)) {
+      customerSelect.value = presetCustomerId;
+      onCustomerSelect();
+    }
+  }
+
+  document.getElementById('product-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('product-modal')) closeModal('product-modal');
+  });
+});
+
+requireAuth(async (user) => {
+  currentUser = user;
+  [customers, allProducts] = await Promise.all([getCustomers(user.uid), getProducts(user.uid)]);
+  products = [...allProducts];
+
+  // Populate customer select
+  const sel = document.getElementById('customer-select');
+  customers.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = `${c.name} (${c.taxId || 'ไม่มี Tax ID'})`;
+    sel.appendChild(opt);
+  });
+
+  if (docId) {
+    await loadExistingDoc();
+  } else {
+    renderLineItems();
+    updateSummary();
+    const params = new URLSearchParams(window.location.search);
+    const presetCustomerId = params.get('customerId');
+    const presetDocType = params.get('docType');
+
+    if (presetDocType) {
+      document.getElementById('doc-type').value = presetDocType;
+      onTypeChange();
+    }
+
+    if (presetCustomerId) {
+      const customerSelect = document.getElementById('customer-select');
+      customerSelect.value = presetCustomerId;
+      onCustomerSelect();
+    }
+  }
+});
+
+// ---- Load Existing Doc ----
+async function loadExistingDoc() {
+  existingDoc = await getDocument(docId);
+  if (!existingDoc) { showToast('ไม่พบเอกสาร', 'error'); return; }
+
+  document.getElementById('page-title').textContent = 'แก้ไขเอกสาร';
+  document.getElementById('mobile-header-title').textContent = existingDoc.number || 'แก้ไขเอกสาร';
+  document.getElementById('doc-number-wrap').innerHTML = `<span class="doc-number-badge">
+    <span class="material-symbols-outlined" style="font-size:14px;">tag</span>${existingDoc.number}
+  </span>`;
+  document.getElementById('status-badge-wrap').innerHTML = statusBadge(existingDoc.status);
+  document.getElementById('btn-delete-wrap').style.display = 'block';
+  document.getElementById('btn-print').style.display = 'flex';
+
+  if (existingDoc.status === 'paid') {
+    document.getElementById('btn-finalize').style.display = 'none';
+    document.getElementById('btn-save-draft').style.display = 'none';
+  } else if (existingDoc.status === 'pending') {
+    document.getElementById('btn-mark-paid').style.display = 'flex';
+  }
+
+  // Fill form
+  document.getElementById('doc-type').value = existingDoc.type || 'INVOICE';
+  document.getElementById('doc-date').value = existingDoc.date?.toDate?.().toISOString().split('T')[0] || '';
+  document.getElementById('doc-due').value = existingDoc.dueDate?.toDate?.().toISOString().split('T')[0] || '';
+  document.getElementById('doc-notes').value = existingDoc.notes || '';
+  document.getElementById('customer-select').value = existingDoc.customerId || '';
+  onCustomerSelect();
+
+  lineItems = existingDoc.items || [];
+  whtEnabled = existingDoc.whtRate > 0;
+  const toggle = document.getElementById('wht-toggle');
+  toggle.classList.toggle('on', whtEnabled);
+  toggle.setAttribute('aria-checked', whtEnabled);
+
+  renderLineItems();
+  updateSummary();
+}
+
+// ---- Line Items ----
+window.addLineItem = function(name='', qty=1, price=0) {
+  lineItems.push({ name, qty, price });
+  renderLineItems();
+  updateSummary();
+};
+
+function renderLineItems() {
+  const tbody = document.getElementById('line-items-tbody');
+  if (lineItems.length === 0) lineItems.push({ name:'', qty:1, price:0 });
+  window.lineItems = lineItems;
+  tbody.innerHTML = lineItems.map((item, i) => `
+    <tr>
+      <td>
+        <input class="line-input" type="text" placeholder="รายการสินค้า/บริการ"
+          value="${escHtml(item.name)}"
+          oninput="window.lineItems[${i}].name=this.value" />
+      </td>
+      <td>
+        <input class="line-input text-right" type="number" min="0.01" step="0.01"
+          value="${item.qty}"
+          oninput="window.lineItems[${i}].qty=parseFloat(this.value)||0; updateSummary()" />
+      </td>
+      <td>
+        <input class="line-input text-right" type="number" min="0" step="0.01"
+          value="${item.price}"
+          oninput="window.lineItems[${i}].price=parseFloat(this.value)||0; updateSummary()" />
+      </td>
+      <td style="text-align:right;padding-right:10px;font-weight:600;font-size:14px;color:var(--color-on-surface);white-space:nowrap;">
+        ${formatTHB((item.qty||0)*(item.price||0))}
+      </td>
+      <td>
+        <button class="remove-row-btn" onclick="removeLineItem(${i})" title="ลบรายการ" ${lineItems.length<=1?'disabled':''}>
+          <span class="material-symbols-outlined" style="font-size:18px;">close</span>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+window.removeLineItem = function(i) {
+  lineItems.splice(i, 1);
+  if (lineItems.length === 0) lineItems.push({ name:'', qty:1, price:0 });
+  window.lineItems = lineItems;
+  renderLineItems();
+  updateSummary();
+};
+
+// ---- WHT Toggle ----
+window.toggleWHT = function() {
+  whtEnabled = !whtEnabled;
+  const toggle = document.getElementById('wht-toggle');
+  toggle.classList.toggle('on', whtEnabled);
+  toggle.setAttribute('aria-checked', whtEnabled);
+  document.getElementById('wht-row').style.opacity = whtEnabled ? '1' : '0.35';
+  updateSummary();
+};
+
+// ---- Summary ----
+window.updateSummary = function() {
+  const calc = calcDocument(lineItems, whtEnabled);
+  document.getElementById('sum-subtotal').textContent = `THB ${formatTHB(calc.subtotal)}`;
+  document.getElementById('sum-wht').textContent = `- THB ${formatTHB(calc.whtAmount)}`;
+  document.getElementById('sum-net').textContent = `THB ${formatTHB(calc.netTotal)}`;
+  // Re-render row totals
+  document.querySelectorAll('#line-items-tbody tr').forEach((tr, i) => {
+    const item = lineItems[i];
+    if (item) {
+      const totalCell = tr.querySelectorAll('td')[3];
+      if (totalCell) totalCell.textContent = formatTHB((item.qty||0)*(item.price||0));
+    }
+  });
+};
+
+// ---- Customer Select ----
+window.onCustomerSelect = function() {
+  const id = document.getElementById('customer-select').value;
+  const cust = customers.find(c => c.id === id);
+  const detailWrap = document.getElementById('customer-details');
+  if (cust) {
+    detailWrap.style.display = 'block';
+    detailWrap.innerHTML = `
+      <strong style="color:var(--color-on-surface);">${cust.name}</strong><br>
+      Tax ID: ${cust.taxId || '—'}<br>
+      ${cust.address ? cust.address + '<br>' : ''}
+      ${cust.email ? `<a href="mailto:${cust.email}" style="color:var(--color-primary);">${cust.email}</a>` : ''}
+    `;
+  } else {
+    detailWrap.style.display = 'none';
+  }
+};
+
+window.onTypeChange = function() {
+  const type = document.getElementById('doc-type').value;
+  const labels = { INVOICE: 'ออกใบแจ้งหนี้ (Pending)', QUOTATION: 'ส่งใบเสนอราคา', RECEIPT: 'ออกใบเสร็จ (Paid)' };
+  document.getElementById('btn-finalize').innerHTML = `
+    <span class="material-symbols-outlined" style="font-size:18px;">send</span>
+    ${labels[type] || 'ออกเอกสาร'}
+  `;
+};
+
+// ---- Product Picker ----
+window.openProductPicker = function() {
+  renderProductList();
+  openModal('product-modal');
+};
+
+window.filterProducts = function() {
+  const q = document.getElementById('product-search').value.toLowerCase();
+  products = allProducts.filter(p => p.name.toLowerCase().includes(q));
+  renderProductList();
+};
+
+function renderProductList() {
+  const wrap = document.getElementById('product-list');
+  if (products.length === 0) {
+    wrap.innerHTML = '<div style="text-align:center;padding:24px;color:var(--color-secondary);">ไม่พบสินค้า/บริการ</div>';
+    return;
+  }
+  wrap.innerHTML = products.map(p => `
+    <button onclick="selectProduct('${p.id}')"
+      style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:var(--radius-lg);text-align:left;width:100%;transition:background var(--transition-fast);hover:background:var(--color-surface-container);"
+      onmouseover="this.style.background='var(--color-surface-container)'"
+      onmouseout="this.style.background='transparent'">
+      <div>
+        <div style="font-weight:600;color:var(--color-on-surface);font-size:14px;">${p.name}</div>
+        <div style="font-size:12px;color:var(--color-secondary);">${p.unit || 'หน่วย'}</div>
+      </div>
+      <div style="font-weight:600;color:var(--color-primary);font-size:14px;white-space:nowrap;">
+        THB ${formatTHB(p.defaultPrice)}
+      </div>
+    </button>
+  `).join('');
+}
+
+window.selectProduct = function(id) {
+  const p = allProducts.find(x => x.id === id);
+  if (p) addLineItem(p.name, 1, p.defaultPrice);
+  closeModal('product-modal');
+};
+
+// ---- Build Doc Data ----
+function normalizeLineItems() {
+  return lineItems
+    .map(item => ({
+      name: String(item?.name || '').trim(),
+      qty: Number(item?.qty) || 0,
+      price: Number(item?.price) || 0,
+    }))
+    .filter(item => item.name || item.qty > 0 || item.price > 0);
+}
+
+function validateDocumentInput() {
+  const customerId = document.getElementById('customer-select').value;
+  const items = normalizeLineItems();
+  const dateVal = document.getElementById('doc-date').value;
+  const dueVal = document.getElementById('doc-due').value;
+
+  if (!customerId) {
+    throw new Error('กรุณาเลือกลูกค้าและเพิ่มรายการสินค้าอย่างน้อย 1 รายการ');
+  }
+
+  const validItems = items.filter(item => item.name && Number(item.qty) > 0 && Number(item.price) >= 0);
+  if (validItems.length === 0) {
+    throw new Error('กรุณาเลือกลูกค้าและเพิ่มรายการสินค้าอย่างน้อย 1 รายการ');
+  }
+
+  if (dateVal && dueVal) {
+    const docDate = new Date(dateVal + 'T00:00:00');
+    const dueDate = new Date(dueVal + 'T00:00:00');
+    if (dueDate < docDate) {
+      throw new Error('วันที่ครบกำหนดต้องไม่น้อยกว่าวันที่เอกสาร');
+    }
+  }
+
+  return { customerId, items: validItems };
+}
+
+function buildDocData(status) {
+  const { customerId, items } = validateDocumentInput();
+  const cust = customers.find(c => c.id === customerId);
+  const calc = calcDocument(items, whtEnabled);
+  const type = document.getElementById('doc-type').value;
+  const dateVal = document.getElementById('doc-date').value;
+  const dueVal = document.getElementById('doc-due').value;
+
+  return {
+    type, status,
+    customerId: customerId || null,
+    customerName: cust?.name || null,
+    customerTaxId: cust?.taxId || null,
+    items,
+    subtotal: calc.subtotal,
+    whtRate: calc.whtRate,
+    whtAmount: calc.whtAmount,
+    netTotal: calc.netTotal,
+    date: dateVal ? Timestamp.fromDate(new Date(dateVal)) : null,
+    dueDate: dueVal ? Timestamp.fromDate(new Date(dueVal)) : null,
+    notes: document.getElementById('doc-notes').value || null,
+  };
+}
+
+async function getNextDocNumber(uid, type) {
+  const existing = await getDocuments(uid);
+  const typePrefix = { INVOICE:'INV', QUOTATION:'QUO', RECEIPT:'REC' }[type] || 'DOC';
+  const sameType = existing.filter(d => d.type === type);
+  return generateDocNumber(type, sameType.length + 1);
+}
+
+// ---- Save / Finalize ----
+window.saveDraft = async function() {
+  const btn = document.getElementById('btn-save-draft');
+  try {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+    const data = buildDocData('draft');
+    if (docId) {
+      await updateDocument(docId, data);
+    } else {
+      data.number = await getNextDocNumber(currentUser.uid, data.type);
+      const ref = await saveDocument(currentUser.uid, data);
+      docId = ref.id;
+      window.history.replaceState({}, '', `?id=${docId}`);
+    }
+    showToast('💾 บันทึกร่างแล้ว');
+    document.getElementById('page-title').textContent = 'แก้ไขเอกสาร';
+    document.getElementById('doc-number-wrap').innerHTML = `<span class="doc-number-badge"><span class="material-symbols-outlined" style="font-size:14px;">tag</span>${data.number || existingDoc?.number || '—'}</span>`;
+  } catch(e) {
+    console.error(e);
+    showToast(e.message || 'เกิดข้อผิดพลาดในการบันทึก', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">save</span> บันทึกร่าง';
+  }
+};
+
+window.finalizeDoc = async function() {
+  const btn = document.getElementById('btn-finalize');
+  const type = document.getElementById('doc-type').value;
+  const status = type === 'RECEIPT' ? 'paid' : 'pending';
+  try {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+    const data = buildDocData(status);
+    if (docId) {
+      await updateDocument(docId, data);
+    } else {
+      data.number = await getNextDocNumber(currentUser.uid, data.type);
+      const ref = await saveDocument(currentUser.uid, data);
+      docId = ref.id;
+    }
+    showToast('✅ ออกเอกสารสำเร็จ');
+    setTimeout(() => window.location.href = 'documents.html', 1200);
+  } catch(e) {
+    console.error(e);
+    showToast(e.message || 'เกิดข้อผิดพลาด', 'error');
+  } finally {
+    btn.disabled = false;
+    onTypeChange();
+  }
+};
+
+window.markPaid = async function() {
+  if (!docId) return;
+  await updateDocument(docId, { status: 'paid' });
+  showToast('✅ ทำเครื่องหมายชำระแล้ว');
+  setTimeout(() => window.location.href = 'documents.html', 1200);
+};
+
+window.confirmDelete = async function() {
+  if (!docId || !confirm('ยืนยันการลบเอกสารนี้?')) return;
+  await deleteDocument(docId);
+  showToast('🗑️ ลบเอกสารแล้ว');
+  setTimeout(() => window.location.href = 'documents.html', 1000);
+};
+
+window.addNewDoc = function() {
+  window.location.href = 'document-editor.html';
+};
+
+window.printDoc = function() {
+  if (!docId) return;
+  window.open(`document-print.html?id=${encodeURIComponent(docId)}`, '_blank');
+};
+
+// Helpers
+function escHtml(str) { return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+import { onAuthChange } from './js/firebase-config.js';
+onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+</script>
+</body>
+</html>

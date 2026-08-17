@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ตั้งค่า — Thai Freelance ERP Lite</title>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="styles/design-system.css" />
+  <style>
+    .settings-layout { display: flex; flex-direction: column; gap: 24px; max-width: 800px; margin: 0 auto; }
+    
+    .settings-card {
+      background: var(--color-surface-container-lowest);
+      border: 1px solid var(--color-workspace-border);
+      border-radius: var(--radius-xl);
+      padding: 32px;
+      box-shadow: var(--shadow-card);
+    }
+    .settings-card-title {
+      font-size: 18px; font-weight: 600; color: var(--color-on-surface);
+      margin-bottom: 24px; padding-bottom: 12px;
+      border-bottom: 1px solid var(--color-workspace-border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    
+    .profile-header { display: flex; align-items: center; gap: 20px; margin-bottom: 32px; }
+    .profile-avatar {
+      width: 80px; height: 80px; border-radius: var(--radius-full);
+      background: var(--color-surface-container); overflow: hidden;
+      flex-shrink: 0; border: 2px solid var(--color-workspace-border);
+    }
+    .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .profile-info h3 { font-size: 20px; font-weight: 700; color: var(--color-on-surface); }
+    .profile-info p { font-size: 14px; color: var(--color-secondary); margin-top: 4px; }
+    
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+    .form-grid .full { grid-column: 1 / -1; }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <span class="material-symbols-outlined" style="font-size:24px;color:var(--color-primary);">receipt_long</span>
+      </div>
+      <div class="sidebar-brand">
+        <div class="brand-name">Thai ERP</div>
+        <div class="brand-sub" id="sidebar-user-name">Freelance Edition</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <button class="nav-item w-full" id="btn-signout" style="text-align:left;">
+        <span class="material-symbols-outlined">logout</span>ออกจากระบบ
+      </button>
+    </div>
+  </aside>
+
+  <header class="mobile-header">
+    <span class="brand">ตั้งค่า</span>
+  </header>
+
+  <main class="main-content">
+    <div class="content-inner">
+      <div class="page-header" style="max-width:800px; margin: 0 auto 32px;">
+        <div>
+          <h1 class="page-title">โปรไฟล์ & ตั้งค่า</h1>
+          <p class="page-subtitle">จัดการข้อมูลส่วนตัว ข้อมูลธุรกิจ และตั้งค่าระบบ</p>
+        </div>
+      </div>
+
+      <div class="settings-layout">
+        
+        <!-- Profile Card -->
+        <div class="settings-card">
+          <div class="settings-card-title">
+            <span class="material-symbols-outlined text-primary">account_circle</span>
+            บัญชีผู้ใช้ (Google)
+          </div>
+          <div class="profile-header">
+            <div class="profile-avatar" id="settings-avatar">
+              <span class="material-symbols-outlined" style="font-size:40px;color:var(--color-outline);margin:20px;">person</span>
+            </div>
+            <div class="profile-info">
+              <h3 id="settings-name">กำลังโหลด...</h3>
+              <p id="settings-email">กำลังโหลด...</p>
+            </div>
+          </div>
+          <p style="font-size:13px;color:var(--color-secondary);">
+            * ข้อมูลบัญชีถูกเชื่อมโยงกับ Google Account หากต้องการเปลี่ยนรูปหรืออีเมล โปรดตั้งค่าผ่าน Google
+          </p>
+        </div>
+
+        <!-- Plan Card -->
+        <div class="settings-card">
+          <div class="settings-card-title">
+            <span class="material-symbols-outlined text-primary">workspace_premium</span>
+            แพ็กเกจ
+          </div>
+          <p style="font-size:13px;color:var(--color-secondary);margin-bottom:16px;">
+            ดูแพ็กเกจปัจจุบันของคุณ การใช้งาน (ลูกค้า/สินค้า) และอัปเกรดได้ที่นี่
+          </p>
+          <a href="plan.html" class="btn btn-secondary">
+            <span class="material-symbols-outlined" style="font-size:18px;">workspace_premium</span>
+            ไปที่หน้าแพ็กเกจ
+          </a>
+        </div>
+
+        <!-- Business Info Card -->
+        <div class="settings-card">
+          <div class="settings-card-title">
+            <span class="material-symbols-outlined text-primary">storefront</span>
+            ข้อมูลธุรกิจ (แสดงบนเอกสาร)
+          </div>
+          <div class="form-grid">
+            <div class="form-group full">
+              <label class="form-label" for="b-name">ชื่อธุรกิจ / ผู้ให้บริการ</label>
+              <input class="form-input" type="text" id="b-name" placeholder="เช่น นายสมชาย ใจดี หรือ บริษัท จำกัด" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="b-taxid">เลขประจำตัวผู้เสียภาษี (Tax ID)</label>
+              <input class="form-input" type="text" id="b-taxid" placeholder="X-XXXX-XXXXX-XX-X" maxlength="17" oninput="this.value=formatTaxId(this.value)" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="b-phone">เบอร์โทรศัพท์</label>
+              <input class="form-input" type="tel" id="b-phone" placeholder="08X-XXX-XXXX" />
+            </div>
+            <div class="form-group full">
+              <label class="form-label" for="b-address">ที่อยู่</label>
+              <textarea class="form-input" id="b-address" rows="3" placeholder="ระบุที่อยู่สำหรับออกเอกสาร"></textarea>
+            </div>
+          </div>
+          <div style="margin-top:24px;text-align:right;">
+            <button class="btn btn-primary" id="btn-save-biz" onclick="saveBusinessInfo()">
+              <span class="material-symbols-outlined" style="font-size:18px;">save</span> บันทึกข้อมูลธุรกิจ
+            </button>
+          </div>
+        </div>
+
+        <!-- System Settings Card -->
+        <div class="settings-card">
+          <div class="settings-card-title">
+            <span class="material-symbols-outlined text-primary">settings_suggest</span>
+            ตั้งค่าระบบ
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label" for="s-wht">อัตราหัก ณ ที่จ่ายเริ่มต้น</label>
+              <select class="form-select" id="s-wht">
+                <option value="0.03">3% (บริการ/รับจ้างทำของ)</option>
+                <option value="0.02">2% (โฆษณา)</option>
+                <option value="0.01">1% (ขนส่ง)</option>
+                <option value="0.05">5% (เช่า)</option>
+                <option value="0">ไม่ระบุ</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:24px;text-align:right;">
+            <button class="btn btn-secondary" onclick="showToast('✅ บันทึกการตั้งค่าระบบแล้ว')">
+              บันทึกการตั้งค่า
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<nav class="bottom-nav" id="bottom-nav"></nav>
+<div id="toast-container" class="toast-container"></div>
+
+<script type="module">
+import { requireAuth, signOutUser, showToast, renderNav, formatTaxId, navigate } from './js/app.js';
+import { getUserProfile, saveUserProfile } from './js/firebase-config.js';
+
+window.formatTaxId = formatTaxId;
+window.navigate = navigate;
+
+let currentUser = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderNav('settings');
+  document.getElementById('btn-signout')?.addEventListener('click', async () => {
+    await signOutUser(); window.location.href = 'index.html';
+  });
+});
+
+requireAuth(async (user) => {
+  currentUser = user;
+  
+  // Set basic google info
+  document.getElementById('sidebar-user-name').textContent = user.displayName || '';
+  document.getElementById('settings-name').textContent = user.displayName || 'ไม่มีชื่อ';
+  document.getElementById('settings-email').textContent = user.email || '';
+  if (user.photoURL) {
+    document.getElementById('settings-avatar').innerHTML = `<img src="${user.photoURL}" alt="Profile">`;
+  }
+
+  // Load business info
+  if (getUserProfile) {
+    const profile = await getUserProfile(user.uid);
+    if (profile) {
+      document.getElementById('b-name').value = profile.businessName || '';
+      document.getElementById('b-taxid').value = profile.businessTaxId || '';
+      document.getElementById('b-phone').value = profile.businessPhone || '';
+      document.getElementById('b-address').value = profile.businessAddress || '';
+      if (profile.defaultWht) document.getElementById('s-wht').value = profile.defaultWht;
+    } else {
+      document.getElementById('b-name').value = user.displayName || '';
+    }
+  }
+});
+
+window.saveBusinessInfo = async function() {
+  const btn = document.getElementById('btn-save-biz');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  try {
+    const data = {
+      businessName: document.getElementById('b-name').value.trim(),
+      businessTaxId: document.getElementById('b-taxid').value.trim(),
+      businessPhone: document.getElementById('b-phone').value.trim(),
+      businessAddress: document.getElementById('b-address').value.trim(),
+      defaultWht: document.getElementById('s-wht').value
+    };
+    if (saveUserProfile) await saveUserProfile(currentUser.uid, data);
+    showToast('✅ บันทึกข้อมูลธุรกิจเรียบร้อยแล้ว');
+  } catch(e) {
+    console.error(e);
+    showToast('เกิดข้อผิดพลาดในการบันทึก', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">save</span> บันทึกข้อมูลธุรกิจ';
+  }
+};
+
+import { onAuthChange } from './js/firebase-config.js';
+onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+</script>
+</body>
+</html>

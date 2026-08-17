@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — Thai Freelance ERP Lite</title>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="styles/design-system.css" />
+  <style>
+    .settings-layout { display: flex; flex-direction: column; gap: 24px; max-width: 700px; margin: 0 auto; }
+
+    .settings-card {
+      background: var(--color-surface-container-lowest);
+      border: 1px solid var(--color-workspace-border);
+      border-radius: var(--radius-xl);
+      padding: 32px;
+      box-shadow: var(--shadow-card);
+    }
+    .settings-card-title {
+      font-size: 18px; font-weight: 600; color: var(--color-on-surface);
+      margin-bottom: 24px; padding-bottom: 12px;
+      border-bottom: 1px solid var(--color-workspace-border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .search-row { display: flex; gap: 10px; }
+    .search-row .form-input { flex: 1; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+    .form-grid .full { grid-column: 1 / -1; }
+
+    .user-meta-row { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-bottom: 1px dashed var(--color-workspace-border); }
+    .user-meta-row:last-child { border-bottom: none; }
+    .user-meta-row span:first-child { color: var(--color-secondary); }
+    .user-meta-row span:last-child { font-weight: 600; color: var(--color-on-surface); }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <span class="material-symbols-outlined" style="font-size:24px;color:var(--color-primary);">receipt_long</span>
+      </div>
+      <div class="sidebar-brand">
+        <div class="brand-name">Thai ERP</div>
+        <div class="brand-sub" id="sidebar-user-name">Freelance Edition</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <button class="nav-item w-full" id="btn-signout" style="text-align:left;">
+        <span class="material-symbols-outlined">logout</span>ออกจากระบบ
+      </button>
+    </div>
+  </aside>
+
+  <header class="mobile-header">
+    <span class="brand">Admin</span>
+  </header>
+
+  <main class="main-content">
+    <div class="content-inner">
+      <div class="page-header" style="max-width:700px; margin: 0 auto 32px;">
+        <div>
+          <h1 class="page-title">จัดการสมาชิก (Admin)</h1>
+          <p class="page-subtitle">ค้นหาผู้ใช้ด้วยอีเมล และปรับแพ็กเกจ/ขีดจำกัด</p>
+        </div>
+      </div>
+
+      <div class="settings-layout">
+
+        <!-- Search Card -->
+        <div class="settings-card">
+          <div class="settings-card-title">
+            <span class="material-symbols-outlined text-primary">search</span>
+            ค้นหาผู้ใช้
+          </div>
+          <div class="search-row">
+            <input class="form-input" type="email" id="search-email" placeholder="อีเมลผู้ใช้ เช่น user@gmail.com" />
+            <button class="btn btn-primary" id="btn-search" onclick="searchUser()">
+              <span class="material-symbols-outlined" style="font-size:18px;">search</span>
+              ค้นหา
+            </button>
+          </div>
+        </div>
+
+        <!-- Result Card -->
+        <div class="settings-card" id="result-card" style="display:none;">
+          <div class="settings-card-title">
+            <span class="material-symbols-outlined text-primary">person</span>
+            ข้อมูลผู้ใช้
+          </div>
+          <div style="margin-bottom:20px;">
+            <div class="user-meta-row"><span>ชื่อ</span><span id="r-name">-</span></div>
+            <div class="user-meta-row"><span>อีเมล</span><span id="r-email">-</span></div>
+            <div class="user-meta-row"><span>ลูกค้าที่ใช้ไป</span><span id="r-customer-usage">-</span></div>
+            <div class="user-meta-row"><span>สินค้าที่ใช้ไป</span><span id="r-product-usage">-</span></div>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group full">
+              <label class="form-label" for="f-plan">แพ็กเกจ</label>
+              <select class="form-select" id="f-plan" onchange="onPlanSelectChange()">
+                <option value="free">Free</option>
+                <option value="pro">Pro</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="f-customer-limit">ขีดจำกัดลูกค้า</label>
+              <input class="form-input" type="number" id="f-customer-limit" min="0" step="1" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="f-product-limit">ขีดจำกัดสินค้า</label>
+              <input class="form-input" type="number" id="f-product-limit" min="0" step="1" />
+            </div>
+          </div>
+          <div style="margin-top:24px;text-align:right;">
+            <button class="btn btn-primary" id="btn-save-plan" onclick="savePlan()">
+              <span class="material-symbols-outlined" style="font-size:18px;">save</span>
+              บันทึก
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<nav class="bottom-nav" id="bottom-nav"></nav>
+<div id="toast-container" class="toast-container"></div>
+
+<script type="module">
+import { requireAuth, signOutUser, showToast, renderNav, navigate } from './js/app.js';
+import { isAdmin, findUserByEmail, updateUserPlan, PLANS } from './js/firebase-config.js';
+
+window.navigate = navigate;
+
+let foundUser = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderNav('admin');
+  document.getElementById('btn-signout')?.addEventListener('click', async () => {
+    await signOutUser(); window.location.href = 'index.html';
+  });
+});
+
+requireAuth(async (user) => {
+  document.getElementById('sidebar-user-name').textContent = user.displayName || '';
+  if (!(await isAdmin(user.uid))) {
+    window.location.href = 'index.html';
+    return;
+  }
+});
+
+window.searchUser = async function() {
+  const email = document.getElementById('search-email').value.trim();
+  if (!email) { showToast('กรุณากรอกอีเมล', 'error'); return; }
+
+  const btn = document.getElementById('btn-search');
+  btn.disabled = true;
+  try {
+    const user = await findUserByEmail(email);
+    if (!user) {
+      showToast('ไม่พบผู้ใช้อีเมลนี้ในระบบ — ผู้ใช้ต้องเคยเข้าสู่ระบบอย่างน้อยหนึ่งครั้ง', 'error');
+      document.getElementById('result-card').style.display = 'none';
+      foundUser = null;
+      return;
+    }
+    foundUser = user;
+    renderResult(user);
+  } catch (e) {
+    console.error(e);
+    showToast('เกิดข้อผิดพลาดในการค้นหา', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+function renderResult(u) {
+  document.getElementById('result-card').style.display = 'block';
+  document.getElementById('r-name').textContent = u.displayName || '-';
+  document.getElementById('r-email').textContent = u.email || '-';
+  document.getElementById('r-customer-usage').textContent = `${u.customerCount ?? 0} / ${u.customerLimit ?? PLANS.free.customerLimit}`;
+  document.getElementById('r-product-usage').textContent = `${u.productCount ?? 0} / ${u.productLimit ?? PLANS.free.productLimit}`;
+
+  document.getElementById('f-plan').value = u.plan || 'free';
+  document.getElementById('f-customer-limit').value = u.customerLimit ?? PLANS.free.customerLimit;
+  document.getElementById('f-product-limit').value = u.productLimit ?? PLANS.free.productLimit;
+}
+
+window.onPlanSelectChange = function() {
+  const plan = document.getElementById('f-plan').value;
+  if (PLANS[plan]) {
+    document.getElementById('f-customer-limit').value = PLANS[plan].customerLimit;
+    document.getElementById('f-product-limit').value = PLANS[plan].productLimit;
+  }
+};
+
+window.savePlan = async function() {
+  if (!foundUser) return;
+  const btn = document.getElementById('btn-save-plan');
+  btn.disabled = true;
+  try {
+    const plan = document.getElementById('f-plan').value;
+    const customerLimit = parseInt(document.getElementById('f-customer-limit').value, 10) || 0;
+    const productLimit = parseInt(document.getElementById('f-product-limit').value, 10) || 0;
+    await updateUserPlan(foundUser.uid, { plan, customerLimit, productLimit });
+    showToast('✅ อัปเดตแพ็กเกจเรียบร้อยแล้ว');
+    foundUser = { ...foundUser, plan, customerLimit, productLimit };
+    renderResult(foundUser);
+  } catch (e) {
+    console.error(e);
+    showToast('เกิดข้อผิดพลาดในการบันทึก', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+import { onAuthChange } from './js/firebase-config.js';
+onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+</script>
+</body>
+</html>

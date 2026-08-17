@@ -1,0 +1,109 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    function ownsResource() {
+      return isSignedIn() && (
+        (resource != null && resource.data.uid == request.auth.uid) ||
+        (resource == null && request.resource.data.uid == request.auth.uid)
+      );
+    }
+
+    // ---- Plan-limit helpers ----
+    function userProfileExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function userProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    // A missing profile or missing counter/limit fields means the user hasn't been
+    // lazily-initialized yet -> implicitly within the free-tier default -> allow.
+    function withinLimit(countField, limitField) {
+      return !userProfileExists()
+        || !(countField in userProfile())
+        || !(limitField in userProfile())
+        || userProfile()[countField] < userProfile()[limitField];
+    }
+
+    // ---- users/{uid} field guards ----
+    // Field may stay the same, OR (if it didn't exist before) be newly set to `def` —
+    // this is what lets the lazy-init merge-write succeed while blocking a non-admin
+    // from ever setting plan/limit fields to anything but their safe default.
+    function unchangedOrDefault(field, def) {
+      let had = field in resource.data;
+      let has = field in request.resource.data;
+      return !has
+        || (has && had && request.resource.data[field] == resource.data[field])
+        || (has && !had && request.resource.data[field] == def);
+    }
+    // Counter may only stay the same or move by exactly +/-1 per write (treating an
+    // absent field as 0) — blocks a client from jumping/resetting its own usage.
+    function validCounterStep(field) {
+      let before = field in resource.data ? resource.data[field] : 0;
+      let after  = field in request.resource.data ? request.resource.data[field] : before;
+      return after == before || after == before + 1 || after == before - 1;
+    }
+    // For brand-new docs there's no `resource` to diff against — a fresh doc may only
+    // ever seed a counter at 0 or 1.
+    function validNewCounter(field) {
+      return !(field in request.resource.data)
+        || request.resource.data[field] == 0
+        || request.resource.data[field] == 1;
+    }
+
+    match /admins/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.auth.uid == uid
+                    && request.auth.token.email == 'apisitekon@gmail.com';
+      allow update, delete: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+
+      allow create: if isAdmin() || (
+        isOwner(uid) &&
+        (!('plan' in request.resource.data) || request.resource.data.plan == 'free') &&
+        (!('customerLimit' in request.resource.data) || request.resource.data.customerLimit == 50) &&
+        (!('productLimit' in request.resource.data) || request.resource.data.productLimit == 100) &&
+        validNewCounter('customerCount') &&
+        validNewCounter('productCount')
+      );
+
+      allow update: if isAdmin() || (
+        isOwner(uid) &&
+        unchangedOrDefault('plan', 'free') &&
+        unchangedOrDefault('customerLimit', 50) &&
+        unchangedOrDefault('productLimit', 100) &&
+        validCounterStep('customerCount') &&
+        validCounterStep('productCount')
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    match /customers/{docId} {
+      allow read, update, delete: if ownsResource() || isAdmin();
+      allow create: if isAdmin() || (ownsResource() && withinLimit('customerCount', 'customerLimit'));
+    }
+
+    match /products/{docId} {
+      allow read, update, delete: if ownsResource() || isAdmin();
+      allow create: if isAdmin() || (ownsResource() && withinLimit('productCount', 'productLimit'));
+    }
+
+    match /documents/{docId} {
+      allow read, write: if ownsResource() || isAdmin();
+    }
+  }
+}

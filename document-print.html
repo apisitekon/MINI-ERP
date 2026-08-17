@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>พิมพ์เอกสาร — Thai Freelance ERP Lite</title>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="styles/design-system.css" />
+  <style>
+    body { background: var(--color-surface-container); }
+
+    .print-toolbar {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 14px 24px;
+      background: var(--color-surface-container-lowest);
+      border-bottom: 1px solid var(--color-workspace-border);
+    }
+    .print-toolbar-actions { display: flex; gap: 10px; }
+
+    .paper {
+      max-width: 800px; margin: 24px auto 60px;
+      background: #ffffff; color: #1a1a1a;
+      padding: 48px 56px;
+      box-shadow: var(--shadow-card);
+      border-radius: 4px;
+      font-size: 13px; line-height: 1.6;
+    }
+
+    .doc-header { text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #1a2b4c; }
+    .doc-title { font-size: 20px; font-weight: 800; letter-spacing: 0.05em; color: #1a2b4c; }
+    .biz-name { font-weight: 700; margin-top: 6px; }
+    .biz-meta { font-size: 12px; color: #555; margin-top: 2px; }
+
+    .party-grid { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; }
+    .party-block { flex: 1; min-width: 220px; }
+    .party-block.align-right { text-align: right; }
+    .party-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #888; margin-bottom: 4px; }
+
+    .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    .items-table th { background: #1a2b4c; color: #fff; font-size: 11px; font-weight: 600; padding: 8px 10px; text-align: left; }
+    .items-table th.text-right, .items-table td.text-right { text-align: right; }
+    .items-table td { padding: 8px 10px; border-bottom: 1px solid #eee; font-size: 13px; }
+
+    .totals-block { display: flex; justify-content: flex-end; margin-top: 12px; }
+    .totals-table { min-width: 280px; border-collapse: collapse; }
+    .totals-table tr td { padding: 6px 0; }
+    .totals-table tr.net td { font-weight: 800; font-size: 15px; border-top: 2px solid #1a2b4c; padding-top: 10px; }
+
+    .baht-text-row { background: #f5f5f5; padding: 10px 14px; border-radius: 4px; margin-top: 8px; font-weight: 600; text-align: right; }
+
+    .notes-block { margin-top: 24px; white-space: pre-wrap; font-size: 12px; color: #444; }
+
+    .sign-grid { display: flex; justify-content: space-between; margin-top: 60px; gap: 40px; }
+    .sign-block { flex: 1; text-align: center; }
+    .sign-line { border-bottom: 1px dashed #999; height: 50px; }
+    .sign-label { margin-top: 8px; font-size: 12px; color: #555; }
+
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff; }
+      .paper { box-shadow: none; margin: 0; padding: 0; max-width: 100%; }
+      @page { size: A4; margin: 16mm; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="print-toolbar no-print">
+  <a href="documents.html" class="btn btn-ghost">
+    <span class="material-symbols-outlined" style="font-size:18px;">arrow_back</span> กลับ
+  </a>
+  <div class="print-toolbar-actions">
+    <button class="btn btn-secondary" onclick="window.print()">
+      <span class="material-symbols-outlined" style="font-size:18px;">print</span> พิมพ์เอกสาร
+    </button>
+    <button class="btn btn-primary" onclick="window.print()">
+      <span class="material-symbols-outlined" style="font-size:18px;">picture_as_pdf</span> บันทึกเป็น PDF
+    </button>
+  </div>
+</div>
+
+<div class="paper" id="paper">
+  <div style="text-align:center;padding:60px;color:#999;">กำลังโหลดเอกสาร...</div>
+</div>
+
+<script type="module">
+import { requireAuth, formatTHB, formatDate, bahtText } from './js/app.js';
+import { getDocument, getUserProfile, getCustomers } from './js/firebase-config.js';
+
+const TYPE_TITLES = {
+  QUOTATION: { th: 'ใบเสนอราคา', en: 'QUOTATION' },
+  INVOICE:   { th: 'ใบแจ้งหนี้',  en: 'INVOICE' },
+  RECEIPT:   { th: 'ใบเสร็จรับเงิน', en: 'RECEIPT' },
+};
+
+requireAuth(async (user) => {
+  const paper = document.getElementById('paper');
+  const id = new URLSearchParams(window.location.search).get('id');
+  if (!id) { paper.innerHTML = '<p style="text-align:center;padding:60px;">ไม่พบเอกสาร</p>'; return; }
+
+  const [doc, profile, customers] = await Promise.all([
+    getDocument(id),
+    getUserProfile(user.uid),
+    getCustomers(user.uid),
+  ]);
+
+  if (!doc) { paper.innerHTML = '<p style="text-align:center;padding:60px;">ไม่พบเอกสาร</p>'; return; }
+
+  const customer = customers.find(c => c.id === doc.customerId);
+  const title = TYPE_TITLES[doc.type] || { th: 'เอกสาร', en: doc.type || '' };
+  document.title = `${doc.number || title.th} — Thai Freelance ERP Lite`;
+
+  const itemsHtml = (doc.items || []).map((item, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${escHtml(item.name)}</td>
+      <td class="text-right">${item.qty}</td>
+      <td class="text-right">${formatTHB(item.price)}</td>
+      <td class="text-right">${formatTHB((item.qty || 0) * (item.price || 0))}</td>
+    </tr>
+  `).join('');
+
+  const businessMetaParts = [];
+  if (profile?.businessPhone) businessMetaParts.push(`โทร. ${escHtml(profile.businessPhone)}`);
+  if (profile?.businessTaxId) businessMetaParts.push(`เลขประจำตัวผู้เสียภาษี: ${escHtml(profile.businessTaxId)}`);
+
+  paper.innerHTML = `
+    <div class="doc-header">
+      <div class="doc-title">${title.th} (${title.en})</div>
+      <div class="biz-name">${escHtml(profile?.businessName || user.displayName || '')}</div>
+      ${profile?.businessAddress ? `<div class="biz-meta">${escHtml(profile.businessAddress)}</div>` : ''}
+      ${businessMetaParts.length ? `<div class="biz-meta">${businessMetaParts.join(' &nbsp;·&nbsp; ')}</div>` : ''}
+    </div>
+
+    <div class="party-grid">
+      <div class="party-block">
+        <div class="party-label">ลูกค้า</div>
+        <div style="font-weight:700;">${escHtml(doc.customerName || '—')}</div>
+        ${doc.customerTaxId ? `<div>เลขประจำตัวผู้เสียภาษี: ${escHtml(doc.customerTaxId)}</div>` : ''}
+        ${customer?.address ? `<div>${escHtml(customer.address)}</div>` : ''}
+        ${customer?.phone ? `<div>โทร. ${escHtml(customer.phone)}</div>` : ''}
+        ${customer?.email ? `<div>${escHtml(customer.email)}</div>` : ''}
+      </div>
+      <div class="party-block align-right">
+        <div class="party-label">เลขที่เอกสาร</div>
+        <div style="font-weight:700;">${escHtml(doc.number || '—')}</div>
+        <div class="party-label" style="margin-top:10px;">วันที่ออกเอกสาร</div>
+        <div>${formatDate(doc.date)}</div>
+        ${doc.dueDate ? `<div class="party-label" style="margin-top:10px;">วันครบกำหนด</div><div>${formatDate(doc.dueDate)}</div>` : ''}
+      </div>
+    </div>
+
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="width:6%;">ลำดับ</th>
+          <th>รายการ</th>
+          <th class="text-right" style="width:12%;">จำนวน</th>
+          <th class="text-right" style="width:16%;">ราคา/หน่วย</th>
+          <th class="text-right" style="width:16%;">จำนวนเงิน</th>
+        </tr>
+      </thead>
+      <tbody>${itemsHtml}</tbody>
+    </table>
+
+    <div class="totals-block">
+      <table class="totals-table">
+        <tr><td>ยอดรวมก่อนหัก</td><td class="text-right">${formatTHB(doc.subtotal)}</td></tr>
+        ${doc.whtAmount > 0 ? `<tr><td>หัก ณ ที่จ่าย (${(doc.whtRate * 100).toFixed(0)}%)</td><td class="text-right">- ${formatTHB(doc.whtAmount)}</td></tr>` : ''}
+        <tr class="net"><td>ยอดสุทธิ</td><td class="text-right">THB ${formatTHB(doc.netTotal)}</td></tr>
+      </table>
+    </div>
+    <div class="baht-text-row">(${bahtText(doc.netTotal)})</div>
+
+    ${doc.notes ? `<div class="notes-block"><strong>หมายเหตุ:</strong>\n${escHtml(doc.notes)}</div>` : ''}
+
+    <div class="sign-grid">
+      <div class="sign-block">
+        <div class="sign-line"></div>
+        <div class="sign-label">ผู้จัดทำเอกสาร<br>วันที่ ____ / ____ / ____</div>
+      </div>
+      <div class="sign-block">
+        <div class="sign-line"></div>
+        <div class="sign-label">ผู้อนุมัติ / ผู้รับเอกสาร<br>วันที่ ____ / ____ / ____</div>
+      </div>
+    </div>
+  `;
+});
+
+function escHtml(str) {
+  return (str || '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+import { onAuthChange } from './js/firebase-config.js';
+onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+</script>
+</body>
+</html>

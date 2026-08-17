@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>แพ็กเกจ — Thai Freelance ERP Lite</title>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="styles/design-system.css" />
+  <style>
+    .settings-layout { display: flex; flex-direction: column; gap: 24px; max-width: 700px; margin: 0 auto; }
+
+    .settings-card {
+      background: var(--color-surface-container-lowest);
+      border: 1px solid var(--color-workspace-border);
+      border-radius: var(--radius-xl);
+      padding: 32px;
+      box-shadow: var(--shadow-card);
+    }
+    .settings-card-title {
+      font-size: 18px; font-weight: 600; color: var(--color-on-surface);
+      margin-bottom: 24px; padding-bottom: 12px;
+      border-bottom: 1px solid var(--color-workspace-border);
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    .plan-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--color-primary-fixed); color: var(--color-primary);
+      font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: var(--radius-full);
+    }
+
+    .usage-row { margin-bottom: 20px; }
+    .usage-row:last-child { margin-bottom: 0; }
+    .usage-label { display: flex; justify-content: space-between; font-size: 13px; color: var(--color-secondary); margin-bottom: 6px; }
+    .usage-label strong { color: var(--color-on-surface); }
+    .usage-bar-track { height: 8px; border-radius: var(--radius-full); background: var(--color-surface-container); overflow: hidden; }
+    .usage-bar-fill { height: 100%; border-radius: var(--radius-full); background: var(--color-primary); transition: width var(--transition-base); }
+    .usage-bar-fill.warn { background: var(--color-error); }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <span class="material-symbols-outlined" style="font-size:24px;color:var(--color-primary);">receipt_long</span>
+      </div>
+      <div class="sidebar-brand">
+        <div class="brand-name">Thai ERP</div>
+        <div class="brand-sub" id="sidebar-user-name">Freelance Edition</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <button class="nav-item w-full" id="btn-signout" style="text-align:left;">
+        <span class="material-symbols-outlined">logout</span>ออกจากระบบ
+      </button>
+    </div>
+  </aside>
+
+  <header class="mobile-header">
+    <span class="brand">แพ็กเกจ</span>
+  </header>
+
+  <main class="main-content">
+    <div class="content-inner">
+      <div class="page-header" style="max-width:700px; margin: 0 auto 32px;">
+        <div>
+          <h1 class="page-title">แพ็กเกจ</h1>
+          <p class="page-subtitle">แพ็กเกจปัจจุบันและปริมาณการใช้งานของคุณ</p>
+        </div>
+      </div>
+
+      <div class="settings-layout">
+
+        <!-- Plan Card -->
+        <div class="settings-card">
+          <div class="settings-card-title">
+            <span class="material-symbols-outlined text-primary">workspace_premium</span>
+            แพ็กเกจปัจจุบัน
+          </div>
+          <span class="plan-badge" id="plan-badge">
+            <span class="material-symbols-outlined" style="font-size:16px;">workspace_premium</span>
+            กำลังโหลด...
+          </span>
+        </div>
+
+        <!-- Usage Card -->
+        <div class="settings-card">
+          <div class="settings-card-title">
+            <span class="material-symbols-outlined text-primary">bar_chart</span>
+            ปริมาณการใช้งาน
+          </div>
+          <div class="usage-row">
+            <div class="usage-label">
+              <span>ลูกค้า</span>
+              <strong id="usage-customer-text">0 / 0</strong>
+            </div>
+            <div class="usage-bar-track"><div class="usage-bar-fill" id="usage-customer-bar" style="width:0%;"></div></div>
+          </div>
+          <div class="usage-row">
+            <div class="usage-label">
+              <span>สินค้า/บริการ</span>
+              <strong id="usage-product-text">0 / 0</strong>
+            </div>
+            <div class="usage-bar-track"><div class="usage-bar-fill" id="usage-product-bar" style="width:0%;"></div></div>
+          </div>
+        </div>
+
+        <!-- Upgrade Card -->
+        <div class="settings-card">
+          <div class="settings-card-title">
+            <span class="material-symbols-outlined text-primary">upgrade</span>
+            ต้องการเพิ่มจำนวน?
+          </div>
+          <p style="font-size:13px;color:var(--color-secondary);margin-bottom:16px;">
+            ติดต่อเราเพื่ออัปเกรดแพ็กเกจและเพิ่มจำนวนลูกค้า/สินค้าที่บันทึกได้
+          </p>
+          <a class="btn btn-primary" href="mailto:apisitekon@gmail.com?subject=ขออัปเกรดแพ็กเกจ Thai ERP">
+            <span class="material-symbols-outlined" style="font-size:18px;">mail</span>
+            ติดต่อเพื่ออัปเกรด
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<nav class="bottom-nav" id="bottom-nav"></nav>
+<div id="toast-container" class="toast-container"></div>
+
+<script type="module">
+import { requireAuth, signOutUser, renderNav, navigate } from './js/app.js';
+import { getPlanUsage, PLANS } from './js/firebase-config.js';
+
+window.navigate = navigate;
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderNav('plan');
+  document.getElementById('btn-signout')?.addEventListener('click', async () => {
+    await signOutUser(); window.location.href = 'index.html';
+  });
+});
+
+requireAuth(async (user) => {
+  document.getElementById('sidebar-user-name').textContent = user.displayName || '';
+  const usage = await getPlanUsage(user.uid);
+  renderUsage(usage);
+});
+
+function renderUsage(u) {
+  const planLabel = PLANS[u.plan]?.label || u.plan;
+  document.getElementById('plan-badge').innerHTML =
+    `<span class="material-symbols-outlined" style="font-size:16px;">workspace_premium</span> ${planLabel}`;
+
+  setBar('customer', u.customerCount, u.customerLimit);
+  setBar('product', u.productCount, u.productLimit);
+}
+
+function setBar(kind, count, limit) {
+  document.getElementById(`usage-${kind}-text`).textContent = `${count} / ${limit}`;
+  const pct = limit > 0 ? Math.min(100, Math.round((count / limit) * 100)) : 0;
+  const bar = document.getElementById(`usage-${kind}-bar`);
+  bar.style.width = pct + '%';
+  bar.classList.toggle('warn', count >= limit);
+}
+
+import { onAuthChange } from './js/firebase-config.js';
+onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+</script>
+</body>
+</html>

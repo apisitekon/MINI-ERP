@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>สินค้า/บริการ — Thai Freelance ERP Lite</title>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="styles/design-system.css" />
+  <style>
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .product-card {
+      background: var(--color-surface-container-lowest);
+      border: 1px solid var(--color-workspace-border);
+      border-radius: var(--radius-xl);
+      padding: 20px;
+      box-shadow: var(--shadow-card);
+      transition: box-shadow var(--transition-base), transform var(--transition-fast);
+      cursor: pointer;
+      display: flex; flex-direction: column;
+    }
+    .product-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); transform: translateY(-1px); }
+    
+    .product-header { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 16px; }
+    .product-icon {
+      width: 40px; height: 40px; border-radius: var(--radius-lg);
+      background: rgba(70,72,212,0.1); color: var(--color-primary);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .product-name { font-weight: 700; font-size: 15px; color: var(--color-on-surface); line-height: 1.3; }
+    .product-unit { font-size: 12px; color: var(--color-secondary); margin-top: 4px; }
+    
+    .product-price {
+      font-size: 18px; font-weight: 700; color: var(--color-primary);
+      margin-top: auto; padding-top: 12px;
+      border-top: 1px dashed rgba(226,232,240,0.8);
+      display: flex; align-items: baseline; gap: 4px;
+    }
+    .product-price small { font-size: 12px; color: var(--color-secondary); font-weight: 500; }
+    
+    .card-actions { display: flex; gap: 6px; margin-top: 14px; }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <span class="material-symbols-outlined" style="font-size:24px;color:var(--color-primary);">receipt_long</span>
+      </div>
+      <div class="sidebar-brand">
+        <div class="brand-name">Thai ERP</div>
+        <div class="brand-sub" id="sidebar-user-name">Freelance Edition</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <button class="btn-new-invoice" onclick="openAddModal()">
+      <span class="material-symbols-outlined">add</span>
+      เพิ่มสินค้า/บริการ
+    </button>
+    <div class="sidebar-footer">
+      <button class="nav-item w-full" id="btn-signout" style="text-align:left;">
+        <span class="material-symbols-outlined">logout</span>ออกจากระบบ
+      </button>
+    </div>
+  </aside>
+
+  <header class="mobile-header">
+    <span class="brand">สินค้า/บริการ</span>
+    <button class="icon-btn" onclick="openAddModal()">
+      <span class="material-symbols-outlined" style="font-size:22px;">add</span>
+    </button>
+  </header>
+
+  <main class="main-content">
+    <div class="content-inner">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">สินค้า/บริการ</h1>
+          <p class="page-subtitle">จัดการรายการสินค้าหรือบริการที่ใช้บ่อย</p>
+        </div>
+        <div class="page-actions desktop-only">
+          <button class="btn btn-primary" onclick="openAddModal()">
+            <span class="material-symbols-outlined" style="font-size:18px;">add</span>
+            เพิ่มรายการใหม่
+          </button>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="search-bar" style="margin-bottom:20px;">
+        <div class="search-input-wrap">
+          <span class="material-symbols-outlined">search</span>
+          <input class="form-input" type="text" id="search-input" placeholder="ค้นหาชื่อรายการ..." />
+        </div>
+      </div>
+
+      <!-- Stats bar -->
+      <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
+        <div style="background:var(--color-primary-fixed);border-radius:var(--radius-lg);padding:10px 16px;display:flex;align-items:center;gap:8px;">
+          <span class="material-symbols-outlined" style="color:var(--color-primary);font-size:20px;">inventory_2</span>
+          <span style="font-size:13px;font-weight:600;color:var(--color-primary);">
+            สินค้า/บริการทั้งหมด <strong id="product-count">0</strong><span id="product-limit-label"></span> รายการ
+          </span>
+        </div>
+      </div>
+
+      <!-- Product Grid -->
+      <div class="product-grid" id="product-grid">
+        <div style="grid-column:1/-1;text-align:center;padding:48px;">
+          <div class="spinner" style="margin:0 auto;"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<button class="fab" onclick="openAddModal()">
+  <span class="material-symbols-outlined" style="font-size:24px;">add</span>
+</button>
+<nav class="bottom-nav" id="bottom-nav"></nav>
+<div id="toast-container" class="toast-container"></div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-backdrop" id="product-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">เพิ่มสินค้า/บริการ</span>
+      <button class="modal-close" onclick="closeModal('product-modal')">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label" for="f-name">ชื่อรายการ *</label>
+        <input class="form-input" type="text" id="f-name" placeholder="เช่น บริการดูแลเว็บไซต์รายเดือน" required />
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-group">
+          <label class="form-label" for="f-price">ราคาตั้งต้น (THB) *</label>
+          <input class="form-input" type="number" id="f-price" min="0" step="0.01" placeholder="0.00" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="f-unit">หน่วยนับ</label>
+          <input class="form-input" type="text" id="f-unit" placeholder="เช่น เดือน, งาน, โปรเจกต์" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="f-desc">รายละเอียด (ไม่บังคับ)</label>
+        <textarea class="form-input" id="f-desc" rows="2" placeholder="อธิบายเพิ่มเติมเกี่ยวกับบริการนี้"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('product-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="btn-save-product" onclick="saveProduct()">
+        <span class="material-symbols-outlined" style="font-size:18px;">save</span>
+        บันทึก
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-backdrop" id="delete-modal">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-header">
+      <span class="modal-title">ยืนยันการลบ</span>
+      <button class="modal-close" onclick="closeModal('delete-modal')">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <p style="color:var(--color-secondary);font-size:14px;margin-bottom:4px;">คุณต้องการลบรายการ <strong id="delete-name"></strong> ใช่หรือไม่?</p>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('delete-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="btn-confirm-delete" style="background:var(--color-error);">
+        <span class="material-symbols-outlined" style="font-size:18px;">delete</span> ลบ
+      </button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { requireAuth, signOutUser, showToast, renderNav, openModal, closeModal, formatTHB, navigate } from './js/app.js';
+import { getProducts, addProduct, updateProduct, deleteProduct, getPlanUsage } from './js/firebase-config.js';
+
+window.closeModal = closeModal;
+window.openModal = openModal;
+window.navigate = navigate;
+
+let currentUser = null;
+let products = [];
+let editingId = null;
+let deletingId = null;
+let planUsage = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderNav('products');
+  document.getElementById('btn-signout')?.addEventListener('click', async () => {
+    await signOutUser(); window.location.href = 'index.html';
+  });
+  document.getElementById('search-input').addEventListener('input', renderGrid);
+  document.querySelectorAll('.modal-backdrop').forEach(m => {
+    m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
+  });
+  document.getElementById('btn-confirm-delete').addEventListener('click', doDelete);
+});
+
+requireAuth(async (user) => {
+  currentUser = user;
+  document.getElementById('sidebar-user-name').textContent = user.displayName || '';
+  await loadProducts();
+});
+
+async function loadProducts() {
+  [products, planUsage] = await Promise.all([
+    getProducts(currentUser.uid),
+    getPlanUsage(currentUser.uid),
+  ]);
+  renderGrid();
+}
+
+function renderGrid() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const filtered = products.filter(p => p.name?.toLowerCase().includes(q) || p.desc?.toLowerCase().includes(q));
+
+  document.getElementById('product-count').textContent = filtered.length;
+  if (planUsage) {
+    const limitLabel = document.getElementById('product-limit-label');
+    limitLabel.textContent = ` / ${planUsage.productLimit}`;
+    limitLabel.style.color = products.length >= planUsage.productLimit ? 'var(--color-error)' : '';
+  }
+  const grid = document.getElementById('product-grid');
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div style="grid-column:1/-1;" class="empty-state">
+      <span class="material-symbols-outlined">inventory_2</span>
+      <h3 class="empty-state-title">ยังไม่มีรายการ</h3>
+      <p class="empty-state-desc">เพิ่มสินค้าหรือบริการของคุณ เพื่อเลือกใช้เวลาออกเอกสารได้ง่ายขึ้น</p>
+      <button class="btn btn-primary" onclick="openAddModal()">
+        <span class="material-symbols-outlined" style="font-size:18px;">add</span>
+        เพิ่มรายการ
+      </button>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(p => `
+    <div class="product-card" onclick="openEditModal('${p.id}')">
+      <div class="product-header">
+        <div class="product-icon"><span class="material-symbols-outlined">category</span></div>
+        <div>
+          <div class="product-name">${p.name}</div>
+          <div class="product-unit">หน่วย: ${p.unit || 'ชิ้น/งาน'}</div>
+        </div>
+      </div>
+      ${p.desc ? `<div style="font-size:12px;color:var(--color-secondary);margin-bottom:12px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${p.desc}</div>` : ''}
+      <div class="product-price">
+        <small>THB</small> ${formatTHB(p.defaultPrice || 0)}
+      </div>
+      <div class="card-actions" onclick="event.stopPropagation()">
+        <button class="btn btn-secondary" style="flex:1;font-size:12px;padding:6px 10px;" onclick="openEditModal('${p.id}')">
+          <span class="material-symbols-outlined" style="font-size:14px;">edit</span> แก้ไข
+        </button>
+        <button class="btn" style="padding:6px 10px;color:var(--color-error);border:1px solid var(--color-workspace-border);" onclick="openDeleteModal('${p.id}','${esc(p.name)}')">
+          <span class="material-symbols-outlined" style="font-size:14px;">delete</span>
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+window.openAddModal = function() {
+  if (planUsage && products.length >= planUsage.productLimit) {
+    showToast(`ถึงขีดจำกัดแพ็กเกจ (${planUsage.productLimit}/${planUsage.productLimit} รายการ) แล้ว ไปที่หน้า "แพ็กเกจ" เพื่ออัปเกรด`, 'error');
+    return;
+  }
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'เพิ่มสินค้า/บริการ';
+  ['f-name','f-price','f-unit','f-desc'].forEach(id => document.getElementById(id).value = '');
+  openModal('product-modal');
+  document.getElementById('f-name').focus();
+};
+
+window.openEditModal = function(id) {
+  editingId = id;
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('modal-title').textContent = 'แก้ไขรายการ';
+  document.getElementById('f-name').value  = p.name  || '';
+  document.getElementById('f-price').value = p.defaultPrice || '';
+  document.getElementById('f-unit').value  = p.unit  || '';
+  document.getElementById('f-desc').value  = p.desc  || '';
+  openModal('product-modal');
+};
+
+window.saveProduct = async function() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { showToast('กรุณากรอกชื่อรายการ', 'error'); return; }
+  const data = {
+    name,
+    defaultPrice: parseFloat(document.getElementById('f-price').value) || 0,
+    unit: document.getElementById('f-unit').value.trim(),
+    desc: document.getElementById('f-desc').value.trim(),
+  };
+  const btn = document.getElementById('btn-save-product');
+  btn.disabled = true;
+  try {
+    if (editingId) {
+      await updateProduct(editingId, data);
+      showToast('✅ อัปเดตรายการแล้ว');
+    } else {
+      await addProduct(currentUser.uid, data);
+      showToast('✅ เพิ่มรายการใหม่แล้ว');
+    }
+    closeModal('product-modal');
+    await loadProducts();
+  } catch(e) {
+    if (e.message === 'LIMIT_REACHED_PRODUCT' || e.code === 'permission-denied') {
+      showToast('ถึงขีดจำกัดแพ็กเกจของคุณแล้ว กรุณาอัปเกรดที่หน้า "แพ็กเกจ"', 'error');
+      await loadProducts();
+    } else {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    }
+  }
+  finally { btn.disabled = false; }
+};
+
+window.openDeleteModal = function(id, name) {
+  deletingId = id;
+  document.getElementById('delete-name').textContent = name;
+  openModal('delete-modal');
+};
+
+async function doDelete() {
+  if (!deletingId) return;
+  try {
+    await deleteProduct(deletingId);
+    showToast('🗑️ ลบรายการแล้ว');
+    closeModal('delete-modal');
+    await loadProducts();
+  } catch(e) { showToast('เกิดข้อผิดพลาด', 'error'); }
+}
+
+function esc(s) { return (s||'').replace(/'/g,"\\'"); }
+
+import { onAuthChange } from './js/firebase-config.js';
+onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+</script>
+</body>
+</html>

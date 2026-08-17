@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Thai Freelance ERP Lite</title>
+  <meta name="description" content="ภาพรวมธุรกิจฟรีแลนซ์ — รายได้รายเดือน, ภาษีหัก ณ ที่จ่าย, เอกสารรอชำระ" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="styles/design-system.css" />
+  <style>
+    /* Page-specific overrides */
+    .wht-info-icon {
+      font-size: 14px !important;
+      color: var(--color-wht-accent);
+      cursor: help;
+      vertical-align: middle;
+    }
+    .month-selector {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: var(--color-secondary);
+    }
+    .month-selector button {
+      width: 28px; height: 28px;
+      border-radius: var(--radius-full);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--color-secondary);
+      transition: background var(--transition-fast);
+    }
+    .month-selector button:hover { background: var(--color-surface-container); }
+    .month-label { font-weight: 600; color: var(--color-on-surface); min-width: 100px; text-align: center; }
+
+    /* Login overlay */
+    #login-overlay {
+      position: fixed; inset: 0;
+      background: rgba(247,249,251,0.97);
+      z-index: 999;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .login-card {
+      background: white;
+      border: 1px solid var(--color-workspace-border);
+      border-radius: var(--radius-xl);
+      padding: 40px;
+      max-width: 400px; width: 100%;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+    }
+    .login-logo {
+      width: 64px; height: 64px;
+      border-radius: var(--radius-xl);
+      background: var(--color-primary-fixed);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px;
+      color: var(--color-primary);
+    }
+    .login-logo .material-symbols-outlined { font-size: 36px; }
+    .login-title { font-size: 24px; font-weight: 700; color: var(--color-on-surface); margin-bottom: 8px; }
+    .login-sub { font-size: 14px; color: var(--color-secondary); margin-bottom: 28px; }
+    .btn-google {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 12px 20px;
+      border: 1px solid var(--color-workspace-border);
+      border-radius: var(--radius-lg);
+      background: white; color: var(--color-on-surface);
+      font-size: 15px; font-weight: 600;
+      transition: all var(--transition-fast);
+    }
+    .btn-google:hover { background: var(--color-surface-container-low); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .btn-google svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+    /* Notification dot */
+    .nav-item .badge-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--color-status-pending);
+      margin-left: auto;
+    }
+    /* Skeleton loading */
+    .kpi-skeleton { height: 44px; width: 140px; border-radius: var(--radius-md); }
+    .table-skeleton { height: 60px; width: 100%; border-radius: var(--radius-md); margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<!-- ========== LOGIN OVERLAY ========== -->
+<div id="login-overlay" style="display:none;">
+  <div class="login-card">
+    <div class="login-logo">
+      <span class="material-symbols-outlined">receipt_long</span>
+    </div>
+    <h1 class="login-title">Thai Freelance ERP</h1>
+    <p class="login-sub">ระบบจัดการเอกสารสำหรับฟรีแลนซ์ไทย<br>ใบแจ้งหนี้ · ใบเสนอราคา · WHT 3%</p>
+    <button class="btn-google" id="btn-google-login">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      เข้าสู่ระบบด้วย Google
+    </button>
+    <p style="margin-top:16px; font-size:12px; color:var(--color-outline);">
+      ข้อมูลของคุณจะถูกเก็บในบัญชี Firebase ของคุณเท่านั้น
+    </p>
+  </div>
+</div>
+
+<!-- ========== APP SHELL ========== -->
+<div class="app-layout">
+
+  <!-- Sidebar (Desktop) -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo" id="sidebar-avatar">
+        <span class="material-symbols-outlined" style="font-size:24px;color:var(--color-primary);">receipt_long</span>
+      </div>
+      <div class="sidebar-brand">
+        <div class="brand-name">Thai ERP</div>
+        <div class="brand-sub" id="sidebar-user-name">Freelance Edition</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav" id="sidebar-nav">
+      <!-- Rendered by JS -->
+    </nav>
+
+    <button class="btn-new-invoice" id="btn-new-invoice-sidebar" onclick="goNewInvoice()">
+      <span class="material-symbols-outlined">add</span>
+      สร้างเอกสารใหม่
+    </button>
+
+    <div class="sidebar-footer">
+      <a class="nav-item" href="admin.html" id="admin-nav-link" style="display:none;">
+        <span class="material-symbols-outlined">admin_panel_settings</span>
+        <span>Admin</span>
+      </a>
+      <a class="nav-item" href="settings.html">
+        <span class="material-symbols-outlined">manage_accounts</span>
+        <span>โปรไฟล์ &amp; ตั้งค่า</span>
+      </a>
+      <button class="nav-item w-full" id="btn-signout" style="text-align:left;">
+        <span class="material-symbols-outlined">logout</span>
+        <span>ออกจากระบบ</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Mobile Header -->
+  <header class="mobile-header">
+    <span class="brand">Thai ERP</span>
+    <div class="header-actions">
+      <button class="icon-btn" aria-label="การแจ้งเตือน" id="btn-notify-mobile">
+        <span class="material-symbols-outlined" style="font-size:22px;">notifications</span>
+      </button>
+      <div class="avatar" id="mobile-avatar">
+        <span class="material-symbols-outlined" style="font-size:20px;color:var(--color-primary);margin:6px auto;display:block;text-align:center;">person</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <div class="content-inner">
+
+      <!-- Page Header -->
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Dashboard</h1>
+          <p class="page-subtitle" id="dashboard-subtitle">ภาพรวมธุรกิจฟรีแลนซ์ของคุณ</p>
+        </div>
+        <div class="page-actions desktop-only">
+          <button class="btn-icon" aria-label="การแจ้งเตือน">
+            <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+          </button>
+          <button class="btn btn-primary" onclick="goNewInvoice()">
+            <span class="material-symbols-outlined" style="font-size:18px;">add</span>
+            สร้างเอกสารใหม่
+          </button>
+        </div>
+      </div>
+
+      <!-- Profile Reminder Banner -->
+      <div id="profile-reminder-banner" style="display:none;background:var(--color-primary-fixed);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:20px;align-items:center;gap:10px;">
+        <span class="material-symbols-outlined" style="color:var(--color-primary);">info</span>
+        <span style="flex:1;font-size:13px;color:var(--color-primary);">กรุณากรอกข้อมูลธุรกิจของคุณ เพื่อให้แสดงผลถูกต้องบนเอกสาร</span>
+        <a href="settings.html" class="btn btn-secondary" style="font-size:12px;padding:6px 12px;">ไปที่ตั้งค่า</a>
+      </div>
+
+      <!-- Month Selector -->
+      <div class="month-selector" style="margin-bottom:24px;">
+        <button onclick="changeMonth(-1)" aria-label="เดือนก่อน">
+          <span class="material-symbols-outlined" style="font-size:18px;">chevron_left</span>
+        </button>
+        <span class="month-label" id="month-label">กำลังโหลด...</span>
+        <button onclick="changeMonth(1)" aria-label="เดือนถัดไป">
+          <span class="material-symbols-outlined" style="font-size:18px;">chevron_right</span>
+        </button>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="kpi-grid">
+
+        <!-- Total Revenue -->
+        <div class="kpi-card kpi-card--revenue">
+          <div class="kpi-header">
+            <span class="kpi-label">รายได้รวม (เดือนนี้)</span>
+            <span class="material-symbols-outlined kpi-icon kpi-icon--primary">trending_up</span>
+          </div>
+          <div class="kpi-value">
+            <span class="kpi-currency">THB</span>
+            <span class="kpi-amount" id="kpi-revenue">
+              <span class="skeleton kpi-skeleton" style="height:36px;width:160px;display:inline-block;"></span>
+            </span>
+          </div>
+          <div class="kpi-footer">
+            <span class="kpi-trend kpi-trend--up" id="kpi-revenue-trend">
+              <span class="material-symbols-outlined" style="font-size:14px;">arrow_upward</span>
+              รายได้ชำระแล้ว
+            </span>
+          </div>
+        </div>
+
+        <!-- WHT -->
+        <div class="kpi-card kpi-card--wht">
+          <div class="kpi-header">
+            <span class="kpi-label kpi-label-icon">
+              WHT สะสม (ปีนี้)
+              <span class="material-symbols-outlined wht-info-icon" title="ภาษีหัก ณ ที่จ่าย 3% — สะสมจากเอกสารที่ชำระแล้วในปีงบประมาณนี้">info</span>
+            </span>
+            <span class="material-symbols-outlined kpi-icon kpi-icon--wht">receipt_long</span>
+          </div>
+          <div class="kpi-value">
+            <span class="kpi-currency">THB</span>
+            <span class="kpi-amount" id="kpi-wht">
+              <span class="skeleton kpi-skeleton" style="height:36px;width:120px;display:inline-block;"></span>
+            </span>
+          </div>
+          <div class="kpi-footer">
+            <span class="kpi-trend kpi-trend--info" style="color:var(--color-wht-accent);">หัก 3% จากรายได้ที่ชำระ</span>
+          </div>
+        </div>
+
+        <!-- Pending -->
+        <div class="kpi-card kpi-card--pending">
+          <div class="kpi-header">
+            <span class="kpi-label">รอรับเงิน</span>
+            <span class="material-symbols-outlined kpi-icon kpi-icon--pending">schedule</span>
+          </div>
+          <div class="kpi-value">
+            <span class="kpi-currency">THB</span>
+            <span class="kpi-amount" id="kpi-pending">
+              <span class="skeleton kpi-skeleton" style="height:36px;width:130px;display:inline-block;"></span>
+            </span>
+          </div>
+          <div class="kpi-footer">
+            <span class="kpi-trend kpi-trend--info" id="kpi-pending-count">— รายการ</span>
+          </div>
+        </div>
+
+      </div>
+      <!-- END KPI -->
+
+      <!-- Recent Activity -->
+      <div>
+        <div class="section-header">
+          <h2 class="section-title">กิจกรรมล่าสุด</h2>
+          <a class="section-link" href="documents.html">ดูเอกสารทั้งหมด</a>
+        </div>
+
+        <!-- Desktop Table -->
+        <div class="table-card desktop-only" id="recent-docs-table-wrap">
+          <table class="data-table" id="recent-docs-table">
+            <thead>
+              <tr>
+                <th>เลขที่เอกสาร</th>
+                <th>ลูกค้า</th>
+                <th>วันที่</th>
+                <th class="text-right">จำนวนเงิน (THB)</th>
+                <th>สถานะ</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="recent-docs-tbody">
+              <!-- Skeleton rows -->
+              <tr><td colspan="6" style="padding:8px 20px;">
+                <div class="skeleton table-skeleton"></div>
+                <div class="skeleton table-skeleton"></div>
+                <div class="skeleton table-skeleton"></div>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile Cards -->
+        <div class="mobile-only" id="recent-docs-cards" style="display:flex;flex-direction:column;gap:12px;">
+          <!-- Skeleton cards -->
+          <div class="skeleton" style="height:100px;border-radius:var(--radius-xl);"></div>
+          <div class="skeleton" style="height:100px;border-radius:var(--radius-xl);"></div>
+        </div>
+
+      </div>
+      <!-- END Recent Activity -->
+
+      <!-- Quick Tips (shown only when no data) -->
+      <div id="quick-tips" style="display:none; margin-top:32px;">
+        <div class="empty-state">
+          <span class="material-symbols-outlined">rocket_launch</span>
+          <h3 class="empty-state-title">เริ่มต้นใช้งาน</h3>
+          <p class="empty-state-desc">เพิ่มลูกค้าและสร้างเอกสารแรกของคุณ<br>ระบบจะแสดงสถิติที่นี่โดยอัตโนมัติ</p>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+            <a href="customers.html" class="btn btn-secondary">
+              <span class="material-symbols-outlined" style="font-size:18px;">group_add</span>
+              เพิ่มลูกค้า
+            </a>
+            <button class="btn btn-primary" onclick="goNewInvoice()">
+              <span class="material-symbols-outlined" style="font-size:18px;">add</span>
+              สร้างเอกสารแรก
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main><!-- END main -->
+
+</div><!-- END app-layout -->
+
+<!-- Mobile FAB -->
+<button class="fab mobile-only" onclick="goNewInvoice()" aria-label="สร้างเอกสารใหม่">
+  <span class="material-symbols-outlined" style="font-size:24px;">add</span>
+</button>
+
+<!-- Mobile Bottom Nav -->
+<nav class="bottom-nav" id="bottom-nav" aria-label="การนำทางหลัก">
+  <!-- Rendered by JS -->
+</nav>
+
+<!-- Toast Container -->
+<div id="toast-container" class="toast-container"></div>
+
+<!-- Document Action Menu (contextual) -->
+<div class="modal-backdrop" id="doc-action-modal">
+  <div class="modal" style="max-width:320px;">
+    <div class="modal-header">
+      <span class="modal-title" id="doc-action-modal-title">เอกสาร</span>
+      <button class="modal-close" onclick="closeDocActionModal()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="modal-body" style="gap:4px;">
+      <button class="nav-item w-full" id="doc-action-view">
+        <span class="material-symbols-outlined">visibility</span> ดูรายละเอียด
+      </button>
+      <button class="nav-item w-full" id="doc-action-mark-paid" style="color:var(--color-status-paid);">
+        <span class="material-symbols-outlined">check_circle</span> ทำเครื่องหมายชำระแล้ว
+      </button>
+      <button class="nav-item w-full" id="doc-action-delete" style="color:var(--color-error);">
+        <span class="material-symbols-outlined">delete</span> ลบเอกสาร
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ======== SCRIPTS ======== -->
+<script type="module">
+import { requireAuth, signOutUser, showToast, formatTHB, formatDate, statusBadge, renderNav, navigate } from './js/app.js';
+import { getDashboardStats, getRecentDocuments, updateDocument, deleteDocument, getUserProfile, isAdmin } from './js/firebase-config.js';
+
+window.navigate = navigate;
+
+// ---- State ----
+let currentUser = null;
+let viewMonth = new Date();
+let selectedDocId = null;
+const MONTH_NAMES = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+// ---- Init ----
+document.addEventListener('DOMContentLoaded', () => {
+  updateMonthLabel();
+  renderNav('dashboard');
+
+  // Sign out
+  document.getElementById('btn-signout').addEventListener('click', async () => {
+    await signOutUser();
+    window.location.reload();
+  });
+});
+
+// ---- Auth ----
+requireAuth(async (user) => {
+  currentUser = user;
+
+  // Hide login overlay (if shown)
+  const overlay = document.getElementById('login-overlay');
+  if (overlay) overlay.style.display = 'none';
+
+  // Update UI with user info
+  const nameEl = document.getElementById('sidebar-user-name');
+  if (nameEl) nameEl.textContent = user.displayName || user.email || 'ผู้ใช้';
+
+  if (user.photoURL) {
+    const avatarEls = [document.getElementById('sidebar-avatar'), document.getElementById('mobile-avatar')];
+    avatarEls.forEach(el => {
+      if (el) el.innerHTML = `<img src="${user.photoURL}" alt="${user.displayName}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    });
+  }
+
+  document.getElementById('dashboard-subtitle').textContent = `สวัสดี, ${user.displayName?.split(' ')[0] || 'คุณ'} — ภาพรวมธุรกิจของคุณ`;
+
+  await Promise.all([loadStats(), loadRecentDocs(), checkProfileReminder(user.uid), checkAdminLink(user.uid)]);
+});
+
+async function checkProfileReminder(uid) {
+  const profile = await getUserProfile(uid);
+  if (!profile?.businessName) {
+    document.getElementById('profile-reminder-banner').style.display = 'flex';
+  }
+}
+
+async function checkAdminLink(uid) {
+  if (await isAdmin(uid)) {
+    document.getElementById('admin-nav-link').style.display = 'flex';
+  }
+}
+
+// Show login if not authed
+import { onAuthChange } from './js/firebase-config.js';
+onAuthChange(user => {
+  if (!user) {
+    document.getElementById('login-overlay').style.display = 'flex';
+    document.getElementById('btn-google-login').addEventListener('click', handleGoogleLogin);
+  }
+});
+
+async function handleGoogleLogin() {
+  try {
+    const { signInWithGoogle } = await import('./js/firebase-config.js');
+    await signInWithGoogle();
+    window.location.reload();
+  } catch(e) {
+    showToast('เข้าสู่ระบบไม่สำเร็จ กรุณาลองอีกครั้ง', 'error');
+  }
+}
+
+// ---- Load Dashboard Stats ----
+async function loadStats() {
+  try {
+    const stats = await getDashboardStats(currentUser.uid);
+    document.getElementById('kpi-revenue').textContent = formatTHB(stats.monthlyRevenue);
+    document.getElementById('kpi-wht').textContent = formatTHB(stats.whtAccumulated);
+    document.getElementById('kpi-pending').textContent = formatTHB(stats.pendingAmount);
+    document.getElementById('kpi-pending-count').textContent = `${stats.pendingCount} รายการรอชำระ`;
+  } catch (e) {
+    console.error(e);
+    ['kpi-revenue','kpi-wht','kpi-pending'].forEach(id => {
+      document.getElementById(id).textContent = '0.00';
+    });
+  }
+}
+
+// ---- Load Recent Documents ----
+async function loadRecentDocs() {
+  try {
+    const docs = await getRecentDocuments(currentUser.uid, 5);
+
+    if (docs.length === 0) {
+      document.getElementById('quick-tips').style.display = 'block';
+      document.getElementById('recent-docs-table-wrap').style.display = 'none';
+      document.getElementById('recent-docs-cards').style.display = 'none';
+      return;
+    }
+
+    // Desktop Table
+    const tbody = document.getElementById('recent-docs-tbody');
+    tbody.innerHTML = docs.map(doc => `
+      <tr>
+        <td class="font-mono font-medium">${doc.number || '—'}</td>
+        <td>${doc.customerName || '—'}</td>
+        <td>${formatDate(doc.date)}</td>
+        <td class="text-right">${formatTHB(doc.netTotal)}</td>
+        <td>${statusBadge(doc.status)}</td>
+        <td class="row-action">
+          <button onclick="openDocAction('${doc.id}', '${doc.number}', '${doc.status}')" aria-label="เพิ่มเติม">
+            <span class="material-symbols-outlined" style="font-size:20px;">more_vert</span>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+
+    // Mobile Cards
+    const cardsWrap = document.getElementById('recent-docs-cards');
+    cardsWrap.innerHTML = docs.map(doc => `
+      <a href="document-editor.html?id=${doc.id}" class="mobile-card" style="cursor:pointer;">
+        <div class="mobile-card-header">
+          <div>
+            <div class="mobile-card-id">${doc.number || '—'}</div>
+            <div class="mobile-card-client">${doc.customerName || '—'}</div>
+          </div>
+          ${statusBadge(doc.status)}
+        </div>
+        <div class="mobile-card-footer">
+          <span class="mobile-card-date">${formatDate(doc.date)}</span>
+          <span class="mobile-card-amount">THB ${formatTHB(doc.netTotal)}</span>
+        </div>
+      </a>
+    `).join('');
+
+  } catch(e) {
+    console.error(e);
+    document.getElementById('recent-docs-tbody').innerHTML = `
+      <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--color-secondary);">
+        ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่
+      </td></tr>`;
+  }
+}
+
+// ---- Month Navigation ----
+window.changeMonth = function(delta) {
+  viewMonth.setMonth(viewMonth.getMonth() + delta);
+  updateMonthLabel();
+};
+function updateMonthLabel() {
+  document.getElementById('month-label').textContent =
+    `${MONTH_NAMES[viewMonth.getMonth()]} ${viewMonth.getFullYear() + 543}`;
+}
+
+// ---- Document Action Modal ----
+window.openDocAction = function(id, number, status) {
+  selectedDocId = id;
+  document.getElementById('doc-action-modal-title').textContent = number;
+  const paidBtn = document.getElementById('doc-action-mark-paid');
+  paidBtn.style.display = status === 'paid' ? 'none' : 'flex';
+  document.getElementById('doc-action-modal').classList.add('active');
+};
+window.closeDocActionModal = function() {
+  document.getElementById('doc-action-modal').classList.remove('active');
+  selectedDocId = null;
+};
+
+document.getElementById('doc-action-view').addEventListener('click', () => {
+  if (selectedDocId) navigate('document-editor', { id: selectedDocId });
+});
+
+document.getElementById('doc-action-mark-paid').addEventListener('click', async () => {
+  if (!selectedDocId) return;
+  try {
+    await updateDocument(selectedDocId, { status: 'paid' });
+    showToast('✅ ทำเครื่องหมายชำระแล้วสำเร็จ');
+    closeDocActionModal();
+    await Promise.all([loadStats(), loadRecentDocs()]);
+  } catch(e) {
+    showToast('เกิดข้อผิดพลาด', 'error');
+  }
+});
+
+document.getElementById('doc-action-delete').addEventListener('click', async () => {
+  if (!selectedDocId) return;
+  if (!confirm('ยืนยันการลบเอกสารนี้?')) return;
+  try {
+    await deleteDocument(selectedDocId);
+    showToast('🗑️ ลบเอกสารแล้ว');
+    closeDocActionModal();
+    await Promise.all([loadStats(), loadRecentDocs()]);
+  } catch(e) {
+    showToast('เกิดข้อผิดพลาด', 'error');
+  }
+});
+
+// Close modal on backdrop click
+document.getElementById('doc-action-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeDocActionModal();
+});
+
+// ---- Navigate to new invoice ----
+window.goNewInvoice = function() { navigate('document-editor'); };
+</script>
+</body>
+</html>

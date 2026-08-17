@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>เอกสาร — Thai Freelance ERP Lite</title>
+  <meta name="description" content="รายการใบแจ้งหนี้ ใบเสนอราคา และใบเสร็จรับเงิน — Thai Freelance ERP" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="styles/design-system.css" />
+  <style>
+    .filter-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .chip {
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      font-size: 12px; font-weight: 600;
+      letter-spacing: 0.04em;
+      border: 1px solid var(--color-workspace-border);
+      background: var(--color-surface-container-lowest);
+      color: var(--color-secondary);
+      transition: all var(--transition-fast);
+      cursor: pointer;
+    }
+    .chip:hover { background: var(--color-surface-container); }
+    .chip.active {
+      background: var(--color-primary);
+      color: var(--color-on-primary);
+      border-color: var(--color-primary);
+    }
+    .chip--paid.active    { background: var(--color-status-paid);      border-color: var(--color-status-paid); }
+    .chip--pending.active { background: var(--color-status-pending);   border-color: var(--color-status-pending); }
+    .chip--draft.active   { background: var(--color-status-draft);     border-color: var(--color-status-draft); }
+    .chip--cancelled.active { background: var(--color-status-cancelled); border-color: var(--color-status-cancelled); }
+
+    .doc-type-tabs { display: flex; gap: 4px; background: var(--color-surface-container); padding: 4px; border-radius: var(--radius-lg); margin-bottom: 20px; }
+    .doc-type-tab {
+      flex: 1; padding: 8px 12px; border-radius: var(--radius-md);
+      font-size: 13px; font-weight: 600; text-align: center;
+      color: var(--color-secondary);
+      transition: all var(--transition-fast);
+    }
+    .doc-type-tab.active { background: var(--color-surface-container-lowest); color: var(--color-primary); box-shadow: var(--shadow-card); }
+    .doc-type-tab:hover:not(.active) { background: var(--color-surface-container-high); }
+
+    .pagination { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-top: 1px solid var(--color-workspace-border); background: var(--color-surface-container-lowest); }
+    .pagination-info { font-size: 12px; color: var(--color-secondary); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+    .pagination-btns { display: flex; gap: 4px; }
+    .pagination-btns button { width: 32px; height: 32px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; color: var(--color-secondary); transition: all var(--transition-fast); }
+    .pagination-btns button:hover:not(:disabled) { background: var(--color-surface-container); color: var(--color-primary); }
+    .pagination-btns button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .wht-hint { font-size: 11px; color: var(--color-secondary); display: block; margin-top: 2px; }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <span class="material-symbols-outlined" style="font-size:24px;color:var(--color-primary);">receipt_long</span>
+      </div>
+      <div class="sidebar-brand">
+        <div class="brand-name">Thai ERP</div>
+        <div class="brand-sub" id="sidebar-user-name">Freelance Edition</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <button class="btn-new-invoice" onclick="navigate('document-editor')">
+      <span class="material-symbols-outlined">add</span>
+      สร้างเอกสารใหม่
+    </button>
+    <div class="sidebar-footer">
+      <button class="nav-item w-full" id="btn-signout" style="text-align:left;">
+        <span class="material-symbols-outlined">logout</span>
+        <span>ออกจากระบบ</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Mobile Header -->
+  <header class="mobile-header">
+    <span class="brand">Thai ERP</span>
+    <div class="header-actions">
+      <a href="index.html" class="icon-btn" aria-label="กลับ Dashboard">
+        <span class="material-symbols-outlined" style="font-size:22px;">home</span>
+      </a>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="content-inner">
+
+      <!-- Page Header -->
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">เอกสาร</h1>
+          <p class="page-subtitle">จัดการใบแจ้งหนี้ ใบเสนอราคา และใบเสร็จ</p>
+        </div>
+        <div class="page-actions desktop-only">
+          <button class="btn btn-primary" onclick="navigate('document-editor')">
+            <span class="material-symbols-outlined" style="font-size:18px;">add</span>
+            สร้างเอกสารใหม่
+          </button>
+        </div>
+      </div>
+
+      <!-- Document Type Tabs -->
+      <div class="doc-type-tabs">
+        <button class="doc-type-tab active" data-type="" onclick="setDocType(this, '')">ทั้งหมด</button>
+        <button class="doc-type-tab" data-type="INVOICE" onclick="setDocType(this, 'INVOICE')">ใบแจ้งหนี้</button>
+        <button class="doc-type-tab" data-type="QUOTATION" onclick="setDocType(this, 'QUOTATION')">ใบเสนอราคา</button>
+        <button class="doc-type-tab" data-type="RECEIPT" onclick="setDocType(this, 'RECEIPT')">ใบเสร็จ</button>
+      </div>
+
+      <!-- Status Filter Chips -->
+      <div class="filter-chips">
+        <button class="chip active" data-status="" onclick="setStatus(this, '')">ทั้งหมด</button>
+        <button class="chip chip--draft" data-status="draft" onclick="setStatus(this, 'draft')">ร่าง</button>
+        <button class="chip chip--pending" data-status="pending" onclick="setStatus(this, 'pending')">รอชำระ</button>
+        <button class="chip chip--paid" data-status="paid" onclick="setStatus(this, 'paid')">ชำระแล้ว</button>
+        <button class="chip chip--cancelled" data-status="cancelled" onclick="setStatus(this, 'cancelled')">ยกเลิก</button>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="search-bar">
+        <div class="search-input-wrap">
+          <span class="material-symbols-outlined">search</span>
+          <input class="form-input" type="text" id="search-input" placeholder="ค้นหาเลขที่เอกสาร หรือชื่อลูกค้า..." />
+        </div>
+        <select class="form-select" id="date-filter" style="max-width:160px;">
+          <option value="">วันที่: ทั้งหมด</option>
+          <option value="today">วันนี้</option>
+          <option value="week">สัปดาห์นี้</option>
+          <option value="month">เดือนนี้</option>
+        </select>
+        <button class="btn btn-secondary" onclick="exportCsv()">
+          <span class="material-symbols-outlined" style="font-size:18px;">download</span>
+          ส่งออก CSV
+        </button>
+      </div>
+
+      <!-- Table + Cards -->
+      <div class="table-card">
+
+        <!-- Desktop Table -->
+        <div class="desktop-only" style="overflow-x:auto;">
+          <table class="data-table" id="docs-table">
+            <thead>
+              <tr>
+                <th>เลขที่เอกสาร</th>
+                <th>ประเภท</th>
+                <th>ลูกค้า</th>
+                <th>วันที่</th>
+                <th>วันครบกำหนด</th>
+                <th class="text-right">ยอดรวม (THB)</th>
+                <th class="text-right">WHT 3%</th>
+                <th>สถานะ</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="docs-tbody">
+              <tr><td colspan="9" style="padding:40px;text-align:center;">
+                <div class="spinner" style="margin:0 auto;"></div>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile Cards -->
+        <div class="mobile-only" id="docs-cards" style="padding:12px;display:flex;flex-direction:column;gap:10px;">
+          <div style="text-align:center;padding:40px;">
+            <div class="spinner" style="margin:0 auto;"></div>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="docs-pagination">
+          <span class="pagination-info" id="pagination-info">กำลังโหลด...</span>
+          <div class="pagination-btns">
+            <button id="btn-prev" onclick="changePage(-1)" disabled>
+              <span class="material-symbols-outlined" style="font-size:18px;">chevron_left</span>
+            </button>
+            <button id="btn-next" onclick="changePage(1)">
+              <span class="material-symbols-outlined" style="font-size:18px;">chevron_right</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+      <!-- END table-card -->
+
+    </div>
+  </main>
+</div>
+
+<!-- FAB (Mobile) -->
+<button class="fab" onclick="navigate('document-editor')">
+  <span class="material-symbols-outlined" style="font-size:24px;">add</span>
+</button>
+
+<!-- Bottom Nav -->
+<nav class="bottom-nav" id="bottom-nav"></nav>
+
+<!-- Toast -->
+<div id="toast-container" class="toast-container"></div>
+
+<!-- Action Modal -->
+<div class="modal-backdrop" id="action-modal">
+  <div class="modal" style="max-width:320px;">
+    <div class="modal-header">
+      <span class="modal-title" id="action-modal-title">—</span>
+      <button class="modal-close" onclick="closeModal('action-modal')">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="modal-body" style="gap:4px;">
+      <button class="nav-item w-full" id="act-edit">
+        <span class="material-symbols-outlined">edit</span> แก้ไขเอกสาร
+      </button>
+      <button class="nav-item w-full" id="act-print">
+        <span class="material-symbols-outlined">print</span> พิมพ์ / บันทึก PDF
+      </button>
+      <button class="nav-item w-full" id="act-paid" style="color:var(--color-status-paid);">
+        <span class="material-symbols-outlined">check_circle</span> ทำเครื่องหมายชำระแล้ว
+      </button>
+      <button class="nav-item w-full" id="act-pending" style="color:var(--color-status-pending);">
+        <span class="material-symbols-outlined">schedule</span> เปลี่ยนเป็นรอชำระ
+      </button>
+      <button class="nav-item w-full" id="act-cancel" style="color:var(--color-status-draft);">
+        <span class="material-symbols-outlined">cancel</span> ยกเลิกเอกสาร
+      </button>
+      <button class="nav-item w-full" id="act-delete" style="color:var(--color-error);">
+        <span class="material-symbols-outlined">delete</span> ลบเอกสาร
+      </button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { requireAuth, signOutUser, showToast, formatTHB, formatDate, statusBadge, renderNav, navigate, openModal, closeModal } from './js/app.js';
+import { getDocuments, updateDocument, deleteDocument } from './js/firebase-config.js';
+
+// Export helpers for onclick attrs
+window.navigate = navigate;
+window.closeModal = closeModal;
+
+let currentUser = null;
+let allDocs = [];
+let filteredDocs = [];
+let currentPage = 0;
+let selectedDoc = null;
+
+const PAGE_SIZE = 15;
+let filterStatus = '';
+let filterType = '';
+let filterDate = '';
+let searchQuery = '';
+
+const TYPE_LABELS = { INVOICE: 'ใบแจ้งหนี้', QUOTATION: 'ใบเสนอราคา', RECEIPT: 'ใบเสร็จ' };
+
+// ---- Init ----
+document.addEventListener('DOMContentLoaded', () => {
+  renderNav('documents');
+  document.getElementById('btn-signout')?.addEventListener('click', async () => {
+    await signOutUser(); window.location.href = 'index.html';
+  });
+  document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 300));
+  document.getElementById('date-filter').addEventListener('change', applyFilters);
+  document.getElementById('action-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('action-modal')) closeModal('action-modal');
+  });
+  setupActionButtons();
+});
+
+requireAuth(async (user) => {
+  currentUser = user;
+  document.getElementById('sidebar-user-name').textContent = user.displayName || user.email || '';
+  await loadDocs();
+});
+
+// ---- Load ----
+async function loadDocs() {
+  try {
+    allDocs = await getDocuments(currentUser.uid);
+    applyFilters();
+  } catch(e) {
+    console.error(e);
+    showToast('ไม่สามารถโหลดข้อมูลได้', 'error');
+  }
+}
+
+// ---- Filters ----
+function applyFilters() {
+  searchQuery = document.getElementById('search-input').value.toLowerCase().trim();
+  filterDate = document.getElementById('date-filter').value;
+  const now = new Date();
+
+  filteredDocs = allDocs.filter(doc => {
+    if (filterStatus && doc.status !== filterStatus) return false;
+    if (filterType && doc.type !== filterType) return false;
+    if (searchQuery) {
+      const q = searchQuery;
+      if (!doc.number?.toLowerCase().includes(q) && !doc.customerName?.toLowerCase().includes(q)) return false;
+    }
+    if (filterDate) {
+      const docDate = doc.date?.toDate?.() ?? new Date(doc.date);
+      if (filterDate === 'today') { if (docDate.toDateString() !== now.toDateString()) return false; }
+      else if (filterDate === 'week') {
+        const start = new Date(now); start.setDate(now.getDate() - now.getDay());
+        if (docDate < start) return false;
+      } else if (filterDate === 'month') {
+        if (docDate.getMonth() !== now.getMonth() || docDate.getFullYear() !== now.getFullYear()) return false;
+      }
+    }
+    return true;
+  });
+
+  currentPage = 0;
+  renderTable();
+}
+
+window.setStatus = function(el, status) {
+  filterStatus = status;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  applyFilters();
+};
+window.setDocType = function(el, type) {
+  filterType = type;
+  document.querySelectorAll('.doc-type-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  applyFilters();
+};
+
+// ---- Render ----
+function renderTable() {
+  const start = currentPage * PAGE_SIZE;
+  const end = start + PAGE_SIZE;
+  const page = filteredDocs.slice(start, end);
+  const total = filteredDocs.length;
+
+  // Desktop table
+  const tbody = document.getElementById('docs-tbody');
+  if (page.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" style="padding:48px;text-align:center;color:var(--color-secondary);">
+      <span class="material-symbols-outlined" style="font-size:36px;display:block;margin-bottom:8px;color:var(--color-outline);">description</span>
+      ไม่พบเอกสาร
+    </td></tr>`;
+  } else {
+    tbody.innerHTML = page.map(doc => `
+      <tr style="cursor:pointer;" onclick="navigate('document-editor', {id:'${doc.id}'})">
+        <td class="font-mono font-medium">${doc.number || '—'}</td>
+        <td>${TYPE_LABELS[doc.type] || doc.type || '—'}</td>
+        <td>${doc.customerName || '—'}</td>
+        <td>${formatDate(doc.date)}</td>
+        <td>${formatDate(doc.dueDate)}</td>
+        <td class="text-right">${formatTHB(doc.subtotal)}</td>
+        <td class="text-right" style="color:var(--color-wht-accent);">${doc.whtAmount > 0 ? formatTHB(doc.whtAmount) : '—'}</td>
+        <td>${statusBadge(doc.status)}</td>
+        <td class="row-action">
+          <button onclick="event.stopPropagation(); openAction('${doc.id}')" aria-label="เพิ่มเติม">
+            <span class="material-symbols-outlined" style="font-size:20px;">more_vert</span>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  // Mobile cards
+  const cardsWrap = document.getElementById('docs-cards');
+  if (page.length === 0) {
+    cardsWrap.innerHTML = `<div style="text-align:center;padding:48px;color:var(--color-secondary);">ไม่พบเอกสาร</div>`;
+  } else {
+    cardsWrap.innerHTML = page.map(doc => `
+      <a href="document-editor.html?id=${doc.id}" class="mobile-card" style="cursor:pointer;">
+        <div class="mobile-card-header">
+          <div>
+            <div class="mobile-card-id">${doc.number || '—'}</div>
+            <div class="mobile-card-client">${doc.customerName || '—'} &nbsp;·&nbsp; ${TYPE_LABELS[doc.type] || ''}</div>
+          </div>
+          ${statusBadge(doc.status)}
+        </div>
+        <div class="mobile-card-footer">
+          <span class="mobile-card-date">${formatDate(doc.date)}</span>
+          <div style="text-align:right;">
+            <div class="mobile-card-amount">THB ${formatTHB(doc.netTotal)}</div>
+            ${doc.whtAmount > 0 ? `<span class="wht-hint" style="color:var(--color-wht-accent);">WHT: ${formatTHB(doc.whtAmount)}</span>` : ''}
+          </div>
+        </div>
+      </a>
+    `).join('');
+  }
+
+  // Pagination
+  const showing = total === 0 ? 0 : start + 1;
+  const showingEnd = Math.min(end, total);
+  document.getElementById('pagination-info').textContent = `แสดง ${showing}–${showingEnd} จาก ${total} รายการ`;
+  document.getElementById('btn-prev').disabled = currentPage === 0;
+  document.getElementById('btn-next').disabled = end >= total;
+}
+
+window.changePage = function(delta) {
+  currentPage += delta;
+  renderTable();
+};
+
+// ---- Action Modal ----
+window.openAction = function(id) {
+  selectedDoc = allDocs.find(d => d.id === id);
+  if (!selectedDoc) return;
+  document.getElementById('action-modal-title').textContent = selectedDoc.number || '—';
+  document.getElementById('act-paid').style.display   = selectedDoc.status === 'paid' ? 'none' : 'flex';
+  document.getElementById('act-pending').style.display = selectedDoc.status === 'pending' ? 'none' : 'flex';
+  document.getElementById('act-cancel').style.display  = selectedDoc.status === 'cancelled' ? 'none' : 'flex';
+  openModal('action-modal');
+};
+
+function setupActionButtons() {
+  document.getElementById('act-edit').addEventListener('click', () => {
+    if (selectedDoc) navigate('document-editor', { id: selectedDoc.id });
+  });
+  document.getElementById('act-print').addEventListener('click', () => {
+    if (selectedDoc) window.open(`document-print.html?id=${encodeURIComponent(selectedDoc.id)}`, '_blank');
+    closeModal('action-modal');
+  });
+  const statusActions = [
+    { id: 'act-paid',    status: 'paid',      msg: '✅ ทำเครื่องหมายชำระแล้ว' },
+    { id: 'act-pending', status: 'pending',   msg: '🕐 เปลี่ยนเป็นรอชำระแล้ว' },
+    { id: 'act-cancel',  status: 'cancelled', msg: '❌ ยกเลิกเอกสารแล้ว' },
+  ];
+  statusActions.forEach(({ id, status, msg }) => {
+    document.getElementById(id).addEventListener('click', async () => {
+      if (!selectedDoc) return;
+      await updateDocument(selectedDoc.id, { status });
+      showToast(msg);
+      closeModal('action-modal');
+      await loadDocs();
+    });
+  });
+  document.getElementById('act-delete').addEventListener('click', async () => {
+    if (!selectedDoc || !confirm(`ลบ "${selectedDoc.number}" ใช่หรือไม่?`)) return;
+    await deleteDocument(selectedDoc.id);
+    showToast('🗑️ ลบเอกสารแล้ว');
+    closeModal('action-modal');
+    await loadDocs();
+  });
+}
+
+// ---- CSV Export ----
+window.exportCsv = function() {
+  const rows = [['เลขที่เอกสาร','ประเภท','ลูกค้า','วันที่','ยอดรวม','WHT','ยอดสุทธิ','สถานะ']];
+  filteredDocs.forEach(d => {
+    rows.push([d.number,TYPE_LABELS[d.type]||d.type,d.customerName,formatDate(d.date),d.subtotal,d.whtAmount,d.netTotal,d.status]);
+  });
+  const csv = rows.map(r => r.map(c => `"${c||''}"`).join(',')).join('\n');
+  const blob = new Blob(['\ufeff'+csv], { type: 'text/csv;charset=utf-8;' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `documents-${Date.now()}.csv` });
+  a.click();
+};
+
+// ---- Debounce ----
+function debounce(fn, delay) {
+  let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
+}
+
+import { onAuthChange } from './js/firebase-config.js';
+onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+</script>
+</body>
+</html>
