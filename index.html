@@ -407,19 +407,29 @@ requireAuth(async (user) => {
 
   document.getElementById('dashboard-subtitle').textContent = `สวัสดี, ${user.displayName?.split(' ')[0] || 'คุณ'} — ภาพรวมธุรกิจของคุณ`;
 
-  await Promise.all([loadStats(), loadRecentDocs(), checkProfileReminder(user.uid), checkAdminLink(user.uid)]);
+  await Promise.allSettled([loadStats(), loadRecentDocs(), checkProfileReminder(user.uid), checkAdminLink(user.uid)]);
 });
 
 async function checkProfileReminder(uid) {
-  const profile = await getUserProfile(uid);
-  if (!profile?.businessName) {
-    document.getElementById('profile-reminder-banner').style.display = 'flex';
+  try {
+    const profile = await getUserProfile(uid);
+    if (!profile?.businessName) {
+      document.getElementById('profile-reminder-banner').style.display = 'flex';
+    }
+  } catch (e) {
+    console.error('checkProfileReminder failed:', e);
   }
 }
 
 async function checkAdminLink(uid) {
-  if (await isAdmin(uid)) {
-    document.getElementById('admin-nav-link').style.display = 'flex';
+  try {
+    const admin = await isAdmin(uid);
+    console.log('checkAdminLink: uid=', uid, 'isAdmin=', admin);
+    if (admin) {
+      document.getElementById('admin-nav-link').style.display = 'flex';
+    }
+  } catch (e) {
+    console.error('checkAdminLink failed:', e);
   }
 }
 
