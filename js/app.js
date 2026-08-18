@@ -100,7 +100,7 @@ export function setLoading(el, loading) {
 
 // ---- Auth Guard ----
 export async function requireAuth(onAuthReady) {
-  const { onAuthChange } = await import('./firebase-config.js');
+  const { onAuthChange, isAdmin } = await import('./firebase-config.js');
   onAuthChange(user => {
     if (!user) {
       // Not logged in: if not on dashboard, redirect to it
@@ -109,8 +109,22 @@ export async function requireAuth(onAuthReady) {
       }
       return;
     }
+    renderAdminNavLink(user.uid, isAdmin);
     onAuthReady(user);
   });
+}
+
+// Toggles the #admin-nav-link element (if present on the page) based on admin status.
+// Centralized here so every page using requireAuth gets consistent admin nav visibility
+// without each page having to remember to check isAdmin() itself.
+async function renderAdminNavLink(uid, isAdminFn) {
+  const el = document.getElementById('admin-nav-link');
+  if (!el) return;
+  try {
+    if (await isAdminFn(uid)) el.style.display = 'flex';
+  } catch (e) {
+    console.error('renderAdminNavLink failed:', e);
+  }
 }
 
 export async function signOutUser() {

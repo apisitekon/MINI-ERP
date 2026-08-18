@@ -4,3 +4,7 @@ playwright-report/
 *.log
 .firebase/
 .claude/
+
+# Firebase service account keys — never commit these
+*firebase-adminsdk*.json
+serviceAccountKey.json
