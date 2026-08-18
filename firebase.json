@@ -2,6 +2,21 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "tests/**",
+      "test-results/**",
+      "playwright-report/**",
+      "package.json",
+      "package-lock.json",
+      "playwright.config.js",
+      "firestore.rules"
+    ]
+  },
   "emulators": {
     "auth": { "port": 9099 },
     "firestore": { "port": 8085 },
