@@ -132,6 +132,11 @@
               <input class="form-input" type="tel" id="b-phone" placeholder="08X-XXX-XXXX" />
             </div>
             <div class="form-group full">
+              <label class="form-label" for="b-promptpay">เบอร์พร้อมเพย์ / เลขบัตรประชาชน (PromptPay)</label>
+              <input class="form-input" type="text" id="b-promptpay" placeholder="เช่น 0812345678 หรือ 1234567890123" maxlength="17" />
+              <span style="font-size:12px;color:var(--color-secondary);">ใช้สร้าง QR Code รับชำระเงินบนใบแจ้งหนี้ กรอกเบอร์โทรศัพท์ 10 หลัก หรือเลขบัตรประชาชน/ผู้เสียภาษี 13 หลัก (เว้นว่างได้หากไม่ต้องการแสดง QR)</span>
+            </div>
+            <div class="form-group full">
               <label class="form-label" for="b-address">ที่อยู่</label>
               <textarea class="form-input" id="b-address" rows="3" placeholder="ระบุที่อยู่สำหรับออกเอกสาร"></textarea>
             </div>
@@ -210,6 +215,7 @@ requireAuth(async (user) => {
       document.getElementById('b-name').value = profile.businessName || '';
       document.getElementById('b-taxid').value = profile.businessTaxId || '';
       document.getElementById('b-phone').value = profile.businessPhone || '';
+      document.getElementById('b-promptpay').value = profile.businessPromptPay || '';
       document.getElementById('b-address').value = profile.businessAddress || '';
       if (profile.defaultWht) document.getElementById('s-wht').value = profile.defaultWht;
     } else {
@@ -227,6 +233,7 @@ window.saveBusinessInfo = async function() {
       businessName: document.getElementById('b-name').value.trim(),
       businessTaxId: document.getElementById('b-taxid').value.trim(),
       businessPhone: document.getElementById('b-phone').value.trim(),
+      businessPromptPay: document.getElementById('b-promptpay').value.trim(),
       businessAddress: document.getElementById('b-address').value.trim(),
       defaultWht: document.getElementById('s-wht').value
     };

@@ -238,3 +238,54 @@ export function bahtText(amount) {
   text += satang > 0 ? convertInteger(satang) + 'สตางค์' : 'ถ้วน';
   return isNegative ? 'ลบ' + text : text;
 }
+
+// ---- PromptPay QR Payload (EMVCo TLV format + CRC16-CCITT) ----
+// target: Thai mobile number (any formatting) or 13-digit Citizen/Tax ID
+// amount: number, THB, rendered to 2 decimal places
+export function generatePromptPayPayload(target, amount) {
+  const digits = String(target || '').replace(/\D/g, '');
+
+  let targetId, targetTag;
+  if (digits.length === 13) {
+    // National ID / Tax ID — used as-is
+    targetId = digits;
+    targetTag = '02';
+  } else {
+    // Mobile number — strip leading 0, prepend country code 66, left-pad to 13 chars
+    const local = digits.replace(/^0/, '');
+    targetId = ('66' + local).padStart(13, '0');
+    targetTag = '01';
+  }
+
+  const tlv = (id, value) => id + String(value.length).padStart(2, '0') + value;
+
+  const merchantAccountInfo =
+    tlv('00', 'A000000677010111') +  // PromptPay AID
+    tlv(targetTag, targetId);
+
+  const amountStr = Number(amount).toFixed(2);
+
+  const payloadWithoutCrc =
+    tlv('00', '01') +                  // Payload Format Indicator
+    tlv('01', '12') +                  // Point of Initiation Method: 12 = dynamic (fixed amount)
+    tlv('29', merchantAccountInfo) +   // Merchant Account Info (PromptPay)
+    tlv('53', '764') +                 // Transaction Currency: 764 = THB
+    tlv('54', amountStr) +             // Transaction Amount
+    tlv('58', 'TH') +                  // Country Code
+    '6304';                            // CRC tag + fixed length 04
+
+  return payloadWithoutCrc + crc16ccitt(payloadWithoutCrc);
+}
+
+// CRC-16/CCITT-FALSE: poly 0x1021, init 0xFFFF, no reflect, no final XOR — the
+// exact variant EMVCo QR requires. Internal helper, not exported.
+function crc16ccitt(str) {
+  let crc = 0xFFFF;
+  for (let i = 0; i < str.length; i++) {
+    crc ^= (str.charCodeAt(i) & 0xFF) << 8;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
