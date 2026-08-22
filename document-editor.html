@@ -11,11 +11,11 @@
     /* Editor-specific styles */
     .editor-layout {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       gap: 20px;
     }
     @media (min-width: 1024px) {
-      .editor-layout { grid-template-columns: 1fr 340px; gap: 24px; }
+      .editor-layout { grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; }
     }
 
     .editor-card {
