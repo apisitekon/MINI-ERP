@@ -123,11 +123,22 @@ export function requireAuth(onAuthReady) {
 // Toggles the #admin-nav-link element (if present on the page) based on admin status.
 // Centralized here so every page using requireAuth gets consistent admin nav visibility
 // without each page having to remember to check isAdmin() itself.
+//
+// Cached per tab session: without this, every single router-driven navigation re-runs
+// isAdmin() from scratch, so the link starts hidden (its static HTML default) and only
+// flips visible several hundred ms later on every single page — a flicker that was
+// invisible under the old full-reload architecture (the whole page was already
+// rebuilding) but is jarring now that everything else on the page appears instantly.
+let cachedIsAdmin = null; // null = unknown yet, true/false = known for this tab session
 async function renderAdminNavLink(uid, isAdminFn) {
   const el = document.getElementById('admin-nav-link');
   if (!el) return;
+  if (cachedIsAdmin === true) el.style.display = 'flex'; // apply immediately, no flicker
   try {
-    if (await isAdminFn(uid)) el.style.display = 'flex';
+    const admin = await isAdminFn(uid);
+    cachedIsAdmin = admin;
+    if (!el.isConnected) return; // navigated away before this resolved — don't stomp the new page
+    el.style.display = admin ? 'flex' : 'none';
   } catch (e) {
     console.error('renderAdminNavLink failed:', e);
   }

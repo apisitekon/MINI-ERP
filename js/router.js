@@ -38,7 +38,11 @@ if (!styleTag) {
 
 export async function go(url, { push = true } = {}) {
   const target = new URL(url, window.location.href);
-  const res = await fetch(target.href);
+  // no-store: a browser-cached copy of this page from before the latest deploy would
+  // still carry its OLD inline script — which relies on a real DOMContentLoaded event
+  // that never fires again once the router is running, silently breaking that page's
+  // nav/sign-out wiring. Always fetch the current deployed version.
+  const res = await fetch(target.href, { cache: 'no-store' });
   const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
 
   runCleanups();
