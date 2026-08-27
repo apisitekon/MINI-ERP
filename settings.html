@@ -183,6 +183,9 @@
 <div id="toast-container" class="toast-container"></div>
 
 <script type="module">
+import './js/router.js';
+import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
+import { subscribe } from './js/auth-state.js';
 import { requireAuth, signOutUser, showToast, renderNav, formatTaxId, navigate } from './js/app.js';
 import { getUserProfile, saveUserProfile } from './js/firebase-config.js';
 
@@ -191,14 +194,19 @@ window.navigate = navigate;
 
 let currentUser = null;
 
-document.addEventListener('DOMContentLoaded', () => {
+function init() {
   renderNav('settings');
   document.getElementById('btn-signout')?.addEventListener('click', async () => {
     await signOutUser(); window.location.href = 'index.html';
   });
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
-requireAuth(async (user) => {
+registerCleanup(requireAuth(async (user) => {
   currentUser = user;
   
   // Set basic google info
@@ -211,7 +219,9 @@ requireAuth(async (user) => {
 
   // Load business info
   if (getUserProfile) {
+    const gen = currentGeneration();
     const profile = await getUserProfile(user.uid);
+    if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
     if (profile) {
       document.getElementById('b-name').value = profile.businessName || '';
       document.getElementById('b-taxid').value = profile.businessTaxId || '';
@@ -223,7 +233,7 @@ requireAuth(async (user) => {
       document.getElementById('b-name').value = user.displayName || '';
     }
   }
-});
+}));
 
 window.saveBusinessInfo = async function() {
   const btn = document.getElementById('btn-save-biz');
@@ -249,8 +259,7 @@ window.saveBusinessInfo = async function() {
   }
 };
 
-import { onAuthChange } from './js/firebase-config.js';
-onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+registerCleanup(subscribe(user => { if (!user) window.location.href = 'index.html'; }));
 </script>
 </body>
 </html>

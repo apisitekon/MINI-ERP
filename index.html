@@ -363,6 +363,9 @@
 
 <!-- ======== SCRIPTS ======== -->
 <script type="module">
+import './js/router.js';
+import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
+import { subscribe } from './js/auth-state.js';
 import { requireAuth, signOutUser, showToast, formatTHB, formatDate, statusBadge, renderNav, navigate } from './js/app.js';
 import { getDashboardData, updateDocument, deleteDocument, getUserProfile } from './js/firebase-config.js';
 
@@ -375,7 +378,7 @@ let selectedDocId = null;
 const MONTH_NAMES = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
 // ---- Init ----
-document.addEventListener('DOMContentLoaded', () => {
+function init() {
   updateMonthLabel();
   renderNav('dashboard');
 
@@ -384,10 +387,15 @@ document.addEventListener('DOMContentLoaded', () => {
     await signOutUser();
     window.location.reload();
   });
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
 // ---- Auth ----
-requireAuth(async (user) => {
+registerCleanup(requireAuth(async (user) => {
   currentUser = user;
 
   // Hide login overlay (if shown)
@@ -408,11 +416,13 @@ requireAuth(async (user) => {
   document.getElementById('dashboard-subtitle').textContent = `สวัสดี, ${user.displayName?.split(' ')[0] || 'คุณ'} — ภาพรวมธุรกิจของคุณ`;
 
   await Promise.allSettled([loadDashboard(), checkProfileReminder(user.uid)]);
-});
+}));
 
 async function checkProfileReminder(uid) {
+  const gen = currentGeneration();
   try {
     const profile = await getUserProfile(uid);
+    if (!isCurrent(gen)) return;
     if (!profile?.businessName) {
       document.getElementById('profile-reminder-banner').style.display = 'flex';
     }
@@ -422,13 +432,12 @@ async function checkProfileReminder(uid) {
 }
 
 // Show login if not authed
-import { onAuthChange } from './js/firebase-config.js';
-onAuthChange(user => {
+registerCleanup(subscribe(user => {
   if (!user) {
     document.getElementById('login-overlay').style.display = 'flex';
     document.getElementById('btn-google-login').addEventListener('click', handleGoogleLogin);
   }
-});
+}));
 
 async function handleGoogleLogin() {
   try {
@@ -442,11 +451,14 @@ async function handleGoogleLogin() {
 
 // ---- Load Dashboard (stats + recent docs from a single Firestore read) ----
 async function loadDashboard() {
+  const gen = currentGeneration();
   try {
     const { stats, recentDocs } = await getDashboardData(currentUser.uid, 5);
+    if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
     renderStats(stats);
     renderRecentDocs(recentDocs);
   } catch (e) {
+    if (!isCurrent(gen)) return;
     console.error(e);
     ['kpi-revenue','kpi-wht','kpi-pending'].forEach(id => {
       document.getElementById(id).textContent = '0.00';

@@ -246,6 +246,9 @@
 </div>
 
 <script type="module">
+import './js/router.js';
+import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
+import { subscribe } from './js/auth-state.js';
 import { requireAuth, signOutUser, showToast, formatTHB, formatDate, statusBadge, renderNav, navigate, openModal, closeModal } from './js/app.js';
 import { getDocuments, updateDocument, deleteDocument } from './js/firebase-config.js';
 
@@ -268,7 +271,7 @@ let searchQuery = '';
 const TYPE_LABELS = { INVOICE: 'ใบแจ้งหนี้', QUOTATION: 'ใบเสนอราคา', RECEIPT: 'ใบเสร็จ' };
 
 // ---- Init ----
-document.addEventListener('DOMContentLoaded', () => {
+function init() {
   renderNav('documents');
   document.getElementById('btn-signout')?.addEventListener('click', async () => {
     await signOutUser(); window.location.href = 'index.html';
@@ -279,20 +282,29 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === document.getElementById('action-modal')) closeModal('action-modal');
   });
   setupActionButtons();
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
-requireAuth(async (user) => {
+registerCleanup(requireAuth(async (user) => {
   currentUser = user;
   document.getElementById('sidebar-user-name').textContent = user.displayName || user.email || '';
   await loadDocs();
-});
+}));
 
 // ---- Load ----
 async function loadDocs() {
+  const gen = currentGeneration();
   try {
-    allDocs = await getDocuments(currentUser.uid);
+    const docs = await getDocuments(currentUser.uid);
+    if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
+    allDocs = docs;
     applyFilters();
   } catch(e) {
+    if (!isCurrent(gen)) return;
     console.error(e);
     showToast('ไม่สามารถโหลดข้อมูลได้', 'error');
   }
@@ -472,8 +484,7 @@ function debounce(fn, delay) {
   let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
 }
 
-import { onAuthChange } from './js/firebase-config.js';
-onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+registerCleanup(subscribe(user => { if (!user) window.location.href = 'index.html'; }));
 </script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 // ====================================================
 // Thai Freelance ERP Lite - App Router & Global State
 // ====================================================
+import { subscribe } from './auth-state.js';
 
 // ---- State ----
 export const state = {
@@ -21,7 +22,6 @@ const routes = {
   'settings':          'settings.html',
   'plan':              'plan.html',
   'admin':             'admin.html',
-  'login':             'login.html',
 };
 
 export function navigate(page, params = {}) {
@@ -29,7 +29,7 @@ export function navigate(page, params = {}) {
   if (!file) return;
   const url = new URL(file, window.location.origin + window.location.pathname.replace(/[^/]*$/, ''));
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  window.location.href = url.toString();
+  import('./router.js').then(({ go }) => go(url.toString()));
 }
 
 export function getParam(key) {
@@ -99,9 +99,14 @@ export function setLoading(el, loading) {
 }
 
 // ---- Auth Guard ----
-export async function requireAuth(onAuthReady) {
-  const { onAuthChange, isAdmin } = await import('./firebase-config.js');
-  onAuthChange(user => {
+// Subscribes via auth-state.js's memoized singleton (not firebase-config.js's
+// onAuthChange directly) so re-calling requireAuth on every router-driven page
+// re-execution doesn't create a fresh Firebase-level listener each time. Returns
+// the unsubscribe function so callers can register it with router.js's cleanup
+// registry. Deliberately has no import of router.js itself — document-print.html
+// also calls requireAuth and must not pick up router click-interception behavior.
+export function requireAuth(onAuthReady) {
+  return subscribe(async (user) => {
     if (!user) {
       // Not logged in: if not on dashboard, redirect to it
       if (!window.location.pathname.endsWith('index.html') && window.location.pathname !== '/') {
@@ -109,6 +114,7 @@ export async function requireAuth(onAuthReady) {
       }
       return;
     }
+    const { isAdmin } = await import('./firebase-config.js');
     renderAdminNavLink(user.uid, isAdmin);
     onAuthReady(user);
   });

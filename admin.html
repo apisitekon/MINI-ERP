@@ -137,6 +137,9 @@
 <div id="toast-container" class="toast-container"></div>
 
 <script type="module">
+import './js/router.js';
+import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
+import { subscribe } from './js/auth-state.js';
 import { requireAuth, signOutUser, showToast, renderNav, navigate } from './js/app.js';
 import { isAdmin, findUserByEmail, updateUserPlan, PLANS } from './js/firebase-config.js';
 
@@ -144,20 +147,28 @@ window.navigate = navigate;
 
 let foundUser = null;
 
-document.addEventListener('DOMContentLoaded', () => {
+function init() {
   renderNav('admin');
   document.getElementById('btn-signout')?.addEventListener('click', async () => {
     await signOutUser(); window.location.href = 'index.html';
   });
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
-requireAuth(async (user) => {
+registerCleanup(requireAuth(async (user) => {
   document.getElementById('sidebar-user-name').textContent = user.displayName || '';
-  if (!(await isAdmin(user.uid))) {
+  const gen = currentGeneration();
+  const admin = await isAdmin(user.uid);
+  if (!isCurrent(gen)) return; // navigated away before this resolved — don't force-redirect the new page
+  if (!admin) {
     window.location.href = 'index.html';
     return;
   }
-});
+}));
 
 window.searchUser = async function() {
   const email = document.getElementById('search-email').value.trim();
@@ -223,8 +234,7 @@ window.savePlan = async function() {
   }
 };
 
-import { onAuthChange } from './js/firebase-config.js';
-onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+registerCleanup(subscribe(user => { if (!user) window.location.href = 'index.html'; }));
 </script>
 </body>
 </html>

@@ -194,6 +194,9 @@
 </div>
 
 <script type="module">
+import './js/router.js';
+import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
+import { subscribe } from './js/auth-state.js';
 import { requireAuth, signOutUser, showToast, renderNav, navigate, openModal, closeModal, formatTaxId } from './js/app.js';
 import { getCustomers, addCustomer, updateCustomer, deleteCustomer, getPlanUsage } from './js/firebase-config.js';
 
@@ -208,7 +211,7 @@ let editingId = null;
 let deletingId = null;
 let planUsage = null;
 
-document.addEventListener('DOMContentLoaded', () => {
+function init() {
   renderNav('customers');
   document.getElementById('btn-signout')?.addEventListener('click', async () => {
     await signOutUser(); window.location.href = 'index.html';
@@ -218,19 +221,28 @@ document.addEventListener('DOMContentLoaded', () => {
     m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
   });
   document.getElementById('btn-confirm-delete').addEventListener('click', doDelete);
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
-requireAuth(async (user) => {
+registerCleanup(requireAuth(async (user) => {
   currentUser = user;
   document.getElementById('sidebar-user-name').textContent = user.displayName || '';
   await loadCustomers();
-});
+}));
 
 async function loadCustomers() {
-  [customers, planUsage] = await Promise.all([
+  const gen = currentGeneration();
+  const [c, u] = await Promise.all([
     getCustomers(currentUser.uid),
     getPlanUsage(currentUser.uid),
   ]);
+  if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
+  customers = c;
+  planUsage = u;
   renderGrid();
 }
 
@@ -342,7 +354,7 @@ window.saveCustomer = async function() {
     await loadCustomers();
 
     if (result?.id) {
-      window.location.href = `document-editor.html?customerId=${encodeURIComponent(result.id)}&docType=QUOTATION`;
+      navigate('document-editor', { customerId: result.id, docType: 'QUOTATION' });
     }
   } catch(e) {
     if (e.message === 'LIMIT_REACHED_CUSTOMER' || e.code === 'permission-denied') {
@@ -374,8 +386,7 @@ async function doDelete() {
 
 function esc(s) { return (s||'').replace(/'/g,"\\'"); }
 
-import { onAuthChange } from './js/firebase-config.js';
-onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+registerCleanup(subscribe(user => { if (!user) window.location.href = 'index.html'; }));
 </script>
 </body>
 </html>

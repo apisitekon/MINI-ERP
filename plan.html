@@ -135,23 +135,33 @@
 <div id="toast-container" class="toast-container"></div>
 
 <script type="module">
+import './js/router.js';
+import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
+import { subscribe } from './js/auth-state.js';
 import { requireAuth, signOutUser, renderNav, navigate } from './js/app.js';
 import { getPlanUsage, PLANS } from './js/firebase-config.js';
 
 window.navigate = navigate;
 
-document.addEventListener('DOMContentLoaded', () => {
+function init() {
   renderNav('plan');
   document.getElementById('btn-signout')?.addEventListener('click', async () => {
     await signOutUser(); window.location.href = 'index.html';
   });
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
-requireAuth(async (user) => {
+registerCleanup(requireAuth(async (user) => {
   document.getElementById('sidebar-user-name').textContent = user.displayName || '';
+  const gen = currentGeneration();
   const usage = await getPlanUsage(user.uid);
+  if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
   renderUsage(usage);
-});
+}));
 
 function renderUsage(u) {
   const planLabel = PLANS[u.plan]?.label || u.plan;
@@ -170,8 +180,7 @@ function setBar(kind, count, limit) {
   bar.classList.toggle('warn', count >= limit);
 }
 
-import { onAuthChange } from './js/firebase-config.js';
-onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+registerCleanup(subscribe(user => { if (!user) window.location.href = 'index.html'; }));
 </script>
 </body>
 </html>

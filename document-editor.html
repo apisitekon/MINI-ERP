@@ -395,6 +395,9 @@
 </div>
 
 <script type="module">
+import './js/router.js';
+import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
+import { subscribe } from './js/auth-state.js';
 import { requireAuth, signOutUser, showToast, formatTHB, statusBadge, renderNav, navigate, calcDocument, openModal, closeModal } from './js/app.js';
 import { getCustomers, getProducts, getDocument, saveDocument, updateDocument, deleteDocument, generateDocNumber, getDocuments, Timestamp } from './js/firebase-config.js';
 
@@ -412,7 +415,7 @@ let whtEnabled = true;
 window.lineItems = lineItems;
 
 // ---- Init ----
-document.addEventListener('DOMContentLoaded', async () => {
+async function init() {
   // Set default dates
   const today = new Date().toISOString().split('T')[0];
   const due = new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
@@ -446,11 +449,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('product-modal').addEventListener('click', e => {
     if (e.target === document.getElementById('product-modal')) closeModal('product-modal');
   });
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
-requireAuth(async (user) => {
+registerCleanup(requireAuth(async (user) => {
+  const gen = currentGeneration();
   currentUser = user;
   [customers, allProducts] = await Promise.all([getCustomers(user.uid), getProducts(user.uid)]);
+  if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
   products = [...allProducts];
 
   // Populate customer select
@@ -482,11 +492,13 @@ requireAuth(async (user) => {
       onCustomerSelect();
     }
   }
-});
+}));
 
 // ---- Load Existing Doc ----
 async function loadExistingDoc() {
+  const gen = currentGeneration();
   existingDoc = await getDocument(docId);
+  if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
   if (!existingDoc) { showToast('ไม่พบเอกสาร', 'error'); return; }
 
   document.getElementById('page-title').textContent = 'แก้ไขเอกสาร';
@@ -775,7 +787,7 @@ window.finalizeDoc = async function() {
       docId = ref.id;
     }
     showToast('✅ ออกเอกสารสำเร็จ');
-    setTimeout(() => window.location.href = 'documents.html', 1200);
+    setTimeout(() => navigate('documents'), 1200);
   } catch(e) {
     console.error(e);
     showToast(e.message || 'เกิดข้อผิดพลาด', 'error');
@@ -789,18 +801,18 @@ window.markPaid = async function() {
   if (!docId) return;
   await updateDocument(docId, { status: 'paid' });
   showToast('✅ ทำเครื่องหมายชำระแล้ว');
-  setTimeout(() => window.location.href = 'documents.html', 1200);
+  setTimeout(() => navigate('documents'), 1200);
 };
 
 window.confirmDelete = async function() {
   if (!docId || !confirm('ยืนยันการลบเอกสารนี้?')) return;
   await deleteDocument(docId);
   showToast('🗑️ ลบเอกสารแล้ว');
-  setTimeout(() => window.location.href = 'documents.html', 1000);
+  setTimeout(() => navigate('documents'), 1000);
 };
 
 window.addNewDoc = function() {
-  window.location.href = 'document-editor.html';
+  navigate('document-editor');
 };
 
 window.printDoc = function() {
@@ -811,8 +823,7 @@ window.printDoc = function() {
 // Helpers
 function escHtml(str) { return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-import { onAuthChange } from './js/firebase-config.js';
-onAuthChange(user => { if (!user) window.location.href = 'index.html'; });
+registerCleanup(subscribe(user => { if (!user) window.location.href = 'index.html'; }));
 </script>
 </body>
 </html>
