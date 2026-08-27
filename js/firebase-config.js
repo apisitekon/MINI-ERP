@@ -6,7 +6,8 @@ import {
   getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, connectAuthEmulator
 } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
   collection, query, where, getDocs, Timestamp as FirestoreTimestamp, serverTimestamp,
   connectFirestoreEmulator, runTransaction
 } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
@@ -23,8 +24,22 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
 export const Timestamp = FirestoreTimestamp;
+
+// Persistent local cache so repeat page loads (this is a multi-page app — every
+// navigation re-initializes Firestore) can render from IndexedDB instantly instead of
+// always waiting on a fresh network round-trip. Falls back to memory-only cache on
+// browsers/contexts where IndexedDB isn't available (e.g. some private-browsing modes).
+let dbInstance;
+try {
+  dbInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  });
+} catch (e) {
+  console.warn('Firestore persistent cache unavailable, using memory cache:', e);
+  dbInstance = getFirestore(app);
+}
+export const db = dbInstance;
 
 // Local dev runs against the Firebase Local Emulator Suite instead of production:
 // real Google sign-in on localhost fights Chrome's COOP/storage-partitioning rules
@@ -245,11 +260,6 @@ export async function getDocuments(uid, filters = {}) {
   return res;
 }
 
-export async function getRecentDocuments(uid, count = 5) {
-  const res = await getDocuments(uid);
-  return res.slice(0, count);
-}
-
 export async function getDocument(id) {
   const snap = await getDoc(doc(db, 'documents', id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
@@ -269,14 +279,17 @@ export async function deleteDocument(id) {
 }
 
 // --- Dashboard Aggregations ---
-export async function getDashboardStats(uid) {
+// Fetches the documents collection once and derives both the KPI stats and the recent-docs
+// list from it, instead of the two callers each independently re-querying the same data.
+export async function getDashboardData(uid, recentCount = 5) {
   const docs = await getDocuments(uid);
-  return {
+  const stats = {
     monthlyRevenue: docs.filter(d => d.status === 'paid').reduce((s,d) => s + (d.subtotal||0), 0),
     pendingAmount: docs.filter(d => d.status === 'pending').reduce((s,d) => s + (d.netTotal||0), 0),
     pendingCount: docs.filter(d => d.status === 'pending').length,
     whtAccumulated: docs.filter(d => d.status === 'paid').reduce((s,d) => s + (d.whtAmount||0), 0)
   };
+  return { stats, recentDocs: docs.slice(0, recentCount) };
 }
 
 // ====================================================

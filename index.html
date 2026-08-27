@@ -364,7 +364,7 @@
 <!-- ======== SCRIPTS ======== -->
 <script type="module">
 import { requireAuth, signOutUser, showToast, formatTHB, formatDate, statusBadge, renderNav, navigate } from './js/app.js';
-import { getDashboardStats, getRecentDocuments, updateDocument, deleteDocument, getUserProfile } from './js/firebase-config.js';
+import { getDashboardData, updateDocument, deleteDocument, getUserProfile } from './js/firebase-config.js';
 
 window.navigate = navigate;
 
@@ -407,7 +407,7 @@ requireAuth(async (user) => {
 
   document.getElementById('dashboard-subtitle').textContent = `สวัสดี, ${user.displayName?.split(' ')[0] || 'คุณ'} — ภาพรวมธุรกิจของคุณ`;
 
-  await Promise.allSettled([loadStats(), loadRecentDocs(), checkProfileReminder(user.uid)]);
+  await Promise.allSettled([loadDashboard(), checkProfileReminder(user.uid)]);
 });
 
 async function checkProfileReminder(uid) {
@@ -440,76 +440,73 @@ async function handleGoogleLogin() {
   }
 }
 
-// ---- Load Dashboard Stats ----
-async function loadStats() {
+// ---- Load Dashboard (stats + recent docs from a single Firestore read) ----
+async function loadDashboard() {
   try {
-    const stats = await getDashboardStats(currentUser.uid);
-    document.getElementById('kpi-revenue').textContent = formatTHB(stats.monthlyRevenue);
-    document.getElementById('kpi-wht').textContent = formatTHB(stats.whtAccumulated);
-    document.getElementById('kpi-pending').textContent = formatTHB(stats.pendingAmount);
-    document.getElementById('kpi-pending-count').textContent = `${stats.pendingCount} รายการรอชำระ`;
+    const { stats, recentDocs } = await getDashboardData(currentUser.uid, 5);
+    renderStats(stats);
+    renderRecentDocs(recentDocs);
   } catch (e) {
     console.error(e);
     ['kpi-revenue','kpi-wht','kpi-pending'].forEach(id => {
       document.getElementById(id).textContent = '0.00';
     });
-  }
-}
-
-// ---- Load Recent Documents ----
-async function loadRecentDocs() {
-  try {
-    const docs = await getRecentDocuments(currentUser.uid, 5);
-
-    if (docs.length === 0) {
-      document.getElementById('quick-tips').style.display = 'block';
-      document.getElementById('recent-docs-table-wrap').style.display = 'none';
-      document.getElementById('recent-docs-cards').style.display = 'none';
-      return;
-    }
-
-    // Desktop Table
-    const tbody = document.getElementById('recent-docs-tbody');
-    tbody.innerHTML = docs.map(doc => `
-      <tr>
-        <td class="font-mono font-medium">${doc.number || '—'}</td>
-        <td>${doc.customerName || '—'}</td>
-        <td>${formatDate(doc.date)}</td>
-        <td class="text-right">${formatTHB(doc.netTotal)}</td>
-        <td>${statusBadge(doc.status)}</td>
-        <td class="row-action">
-          <button onclick="openDocAction('${doc.id}', '${doc.number}', '${doc.status}')" aria-label="เพิ่มเติม">
-            <span class="material-symbols-outlined" style="font-size:20px;">more_vert</span>
-          </button>
-        </td>
-      </tr>
-    `).join('');
-
-    // Mobile Cards
-    const cardsWrap = document.getElementById('recent-docs-cards');
-    cardsWrap.innerHTML = docs.map(doc => `
-      <a href="document-editor.html?id=${doc.id}" class="mobile-card" style="cursor:pointer;">
-        <div class="mobile-card-header">
-          <div>
-            <div class="mobile-card-id">${doc.number || '—'}</div>
-            <div class="mobile-card-client">${doc.customerName || '—'}</div>
-          </div>
-          ${statusBadge(doc.status)}
-        </div>
-        <div class="mobile-card-footer">
-          <span class="mobile-card-date">${formatDate(doc.date)}</span>
-          <span class="mobile-card-amount">THB ${formatTHB(doc.netTotal)}</span>
-        </div>
-      </a>
-    `).join('');
-
-  } catch(e) {
-    console.error(e);
     document.getElementById('recent-docs-tbody').innerHTML = `
       <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--color-secondary);">
         ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่
       </td></tr>`;
   }
+}
+
+function renderStats(stats) {
+  document.getElementById('kpi-revenue').textContent = formatTHB(stats.monthlyRevenue);
+  document.getElementById('kpi-wht').textContent = formatTHB(stats.whtAccumulated);
+  document.getElementById('kpi-pending').textContent = formatTHB(stats.pendingAmount);
+  document.getElementById('kpi-pending-count').textContent = `${stats.pendingCount} รายการรอชำระ`;
+}
+
+function renderRecentDocs(docs) {
+  if (docs.length === 0) {
+    document.getElementById('quick-tips').style.display = 'block';
+    document.getElementById('recent-docs-table-wrap').style.display = 'none';
+    document.getElementById('recent-docs-cards').style.display = 'none';
+    return;
+  }
+
+  // Desktop Table
+  const tbody = document.getElementById('recent-docs-tbody');
+  tbody.innerHTML = docs.map(doc => `
+    <tr>
+      <td class="font-mono font-medium">${doc.number || '—'}</td>
+      <td>${doc.customerName || '—'}</td>
+      <td>${formatDate(doc.date)}</td>
+      <td class="text-right">${formatTHB(doc.netTotal)}</td>
+      <td>${statusBadge(doc.status)}</td>
+      <td class="row-action">
+        <button onclick="openDocAction('${doc.id}', '${doc.number}', '${doc.status}')" aria-label="เพิ่มเติม">
+          <span class="material-symbols-outlined" style="font-size:20px;">more_vert</span>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+
+  // Mobile Cards
+  const cardsWrap = document.getElementById('recent-docs-cards');
+  cardsWrap.innerHTML = docs.map(doc => `
+    <a href="document-editor.html?id=${doc.id}" class="mobile-card" style="cursor:pointer;">
+      <div class="mobile-card-header">
+        <div>
+          <div class="mobile-card-id">${doc.number || '—'}</div>
+          <div class="mobile-card-client">${doc.customerName || '—'}</div>
+        </div>
+        ${statusBadge(doc.status)}
+      </div>
+      <div class="mobile-card-footer">
+        <span class="mobile-card-date">${formatDate(doc.date)}</span>
+        <span class="mobile-card-amount">THB ${formatTHB(doc.netTotal)}</span>
+      </div>
+    </a>
+  `).join('');
 }
 
 // ---- Month Navigation ----
@@ -545,7 +542,7 @@ document.getElementById('doc-action-mark-paid').addEventListener('click', async 
     await updateDocument(selectedDocId, { status: 'paid' });
     showToast('✅ ทำเครื่องหมายชำระแล้วสำเร็จ');
     closeDocActionModal();
-    await Promise.all([loadStats(), loadRecentDocs()]);
+    await loadDashboard();
   } catch(e) {
     showToast('เกิดข้อผิดพลาด', 'error');
   }
@@ -558,7 +555,7 @@ document.getElementById('doc-action-delete').addEventListener('click', async () 
     await deleteDocument(selectedDocId);
     showToast('🗑️ ลบเอกสารแล้ว');
     closeDocActionModal();
-    await Promise.all([loadStats(), loadRecentDocs()]);
+    await loadDashboard();
   } catch(e) {
     showToast('เกิดข้อผิดพลาด', 'error');
   }
