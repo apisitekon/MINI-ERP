@@ -198,6 +198,21 @@
 
       <div id="source-banner" class="editor-card" style="display:none;margin-bottom:20px;padding:14px 18px;"></div>
 
+      <div id="link-quotation-wrap" class="editor-card" style="display:none;margin-bottom:20px;padding:14px 18px;">
+        <div style="font-size:13px;font-weight:600;color:var(--color-secondary);margin-bottom:10px;">
+          ใบแจ้งหนี้นี้ยังไม่ได้เชื่อมโยงกับใบเสนอราคา — เชื่อมโยงย้อนหลังได้ที่นี่
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <select class="form-select" id="link-quotation-select" style="flex:1;min-width:200px;">
+            <option value="">— เลือกใบเสนอราคา —</option>
+          </select>
+          <button class="btn btn-secondary" onclick="linkToQuotation()">
+            <span class="material-symbols-outlined" style="font-size:16px;">link</span>
+            เชื่อมโยง
+          </button>
+        </div>
+      </div>
+
       <div class="editor-layout">
 
         <!-- LEFT: Main Editor -->
@@ -574,6 +589,8 @@ async function loadExistingDoc() {
   renderSourceBanner();
   if (existingDoc.type === 'QUOTATION') {
     renderBillingSummary(); // fire-and-forget — progressive fill-in, gated to quotations only
+  } else if (existingDoc.type === 'INVOICE' && !sourceQuotationId) {
+    renderLinkQuotationPicker(); // fire-and-forget — lets an unlinked invoice be connected retroactively
   }
 
   renderLineItems();
@@ -603,6 +620,38 @@ function renderSourceBanner() {
     el.style.display = 'none';
   }
 }
+
+// Lets an EXISTING invoice that predates this feature (or was otherwise created without
+// going through the "issue invoice from this quotation" flow) be linked to a quotation
+// after the fact. Only offered when editing an invoice that has no link yet — gated by
+// the caller in loadExistingDoc().
+async function renderLinkQuotationPicker() {
+  const wrap = document.getElementById('link-quotation-wrap');
+  wrap.style.display = 'block';
+
+  const gen = currentGeneration();
+  const all = await getDocuments(currentUser.uid);
+  if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
+
+  const quotations = all.filter(d => d.type === 'QUOTATION');
+  const sel = document.getElementById('link-quotation-select');
+  sel.innerHTML = '<option value="">— เลือกใบเสนอราคา —</option>' + quotations.map(q =>
+    `<option value="${q.id}" data-number="${escHtml(q.number || '')}">${escHtml(q.number || '—')} — ${escHtml(q.customerName || '')} (THB ${formatTHB(q.netTotal)})</option>`
+  ).join('');
+}
+
+window.linkToQuotation = async function() {
+  const sel = document.getElementById('link-quotation-select');
+  const quoId = sel.value;
+  if (!quoId || !docId) return;
+  const quoNumber = sel.options[sel.selectedIndex].dataset.number || null;
+  await updateDocument(docId, { sourceQuotationId: quoId, sourceQuotationNumber: quoNumber });
+  sourceQuotationId = quoId;
+  sourceQuotationNumber = quoNumber;
+  document.getElementById('link-quotation-wrap').style.display = 'none';
+  renderSourceBanner();
+  showToast('✅ เชื่อมโยงกับใบเสนอราคาแล้ว');
+};
 
 // Fetches all invoices linked to this quotation and renders totals + a list of them.
 // Gated to type==='QUOTATION' by the caller — don't fetch linked docs for other types.
