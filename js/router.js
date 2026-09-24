@@ -13,7 +13,7 @@
 // ====================================================
 
 const ROUTABLE_FILES = new Set([
-  'index.html', 'documents.html', 'document-editor.html', 'customers.html',
+  'dashboard.html', 'documents.html', 'document-editor.html', 'customers.html',
   'products.html', 'settings.html', 'plan.html', 'admin.html',
 ]);
 

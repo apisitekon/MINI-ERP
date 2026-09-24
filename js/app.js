@@ -14,7 +14,7 @@ export const state = {
 
 // ---- Router ----
 const routes = {
-  'dashboard':         'index.html',
+  'dashboard':         'dashboard.html',
   'documents':         'documents.html',
   'document-editor':   'document-editor.html',
   'customers':         'customers.html',
@@ -109,7 +109,7 @@ export function requireAuth(onAuthReady) {
   return subscribe(async (user) => {
     if (!user) {
       // Not logged in: if not on dashboard, redirect to it
-      if (!window.location.pathname.endsWith('index.html') && window.location.pathname !== '/') {
+      if (!window.location.pathname.endsWith('dashboard.html')) {
         navigate('dashboard');
       }
       return;

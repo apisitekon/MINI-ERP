@@ -7,7 +7,7 @@ test.describe('System 1: Auth & Settings', () => {
   });
 
   test('User can login and see dashboard', async ({ page }) => {
-    await page.goto('http://localhost:8080/index.html');
+    await page.goto('http://localhost:8080/dashboard.html');
     await page.evaluate(() => window.localStorage.clear());
     await page.reload();
 

@@ -424,7 +424,7 @@ async function init() {
 
   renderNav('documents');
   document.getElementById('btn-signout')?.addEventListener('click', async () => {
-    await signOutUser(); window.location.href = 'index.html';
+    await signOutUser(); window.location.href = 'dashboard.html';
   });
 
   // Load doc ID and preset values from URL
@@ -823,7 +823,7 @@ window.printDoc = function() {
 // Helpers
 function escHtml(str) { return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-registerCleanup(subscribe(user => { if (!user) window.location.href = 'index.html'; }));
+registerCleanup(subscribe(user => { if (!user) window.location.href = 'dashboard.html'; }));
 </script>
 </body>
 </html>

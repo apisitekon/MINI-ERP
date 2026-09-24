@@ -90,7 +90,7 @@
   <header class="mobile-header">
     <span class="brand">Thai ERP</span>
     <div class="header-actions">
-      <a href="index.html" class="icon-btn" aria-label="กลับ Dashboard">
+      <a href="dashboard.html" class="icon-btn" aria-label="กลับ Dashboard">
         <span class="material-symbols-outlined" style="font-size:22px;">home</span>
       </a>
     </div>
@@ -274,7 +274,7 @@ const TYPE_LABELS = { INVOICE: 'ใบแจ้งหนี้', QUOTATION: 'ใ
 function init() {
   renderNav('documents');
   document.getElementById('btn-signout')?.addEventListener('click', async () => {
-    await signOutUser(); window.location.href = 'index.html';
+    await signOutUser(); window.location.href = 'dashboard.html';
   });
   document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 300));
   document.getElementById('date-filter').addEventListener('change', applyFilters);
@@ -484,7 +484,7 @@ function debounce(fn, delay) {
   let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
 }
 
-registerCleanup(subscribe(user => { if (!user) window.location.href = 'index.html'; }));
+registerCleanup(subscribe(user => { if (!user) window.location.href = 'dashboard.html'; }));
 </script>
 </body>
 </html>

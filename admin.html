@@ -150,7 +150,7 @@ let foundUser = null;
 function init() {
   renderNav('admin');
   document.getElementById('btn-signout')?.addEventListener('click', async () => {
-    await signOutUser(); window.location.href = 'index.html';
+    await signOutUser(); window.location.href = 'dashboard.html';
   });
 }
 if (document.readyState === 'loading') {
@@ -165,7 +165,7 @@ registerCleanup(requireAuth(async (user) => {
   const admin = await isAdmin(user.uid);
   if (!isCurrent(gen)) return; // navigated away before this resolved — don't force-redirect the new page
   if (!admin) {
-    window.location.href = 'index.html';
+    window.location.href = 'dashboard.html';
     return;
   }
 }));
@@ -234,7 +234,7 @@ window.savePlan = async function() {
   }
 };
 
-registerCleanup(subscribe(user => { if (!user) window.location.href = 'index.html'; }));
+registerCleanup(subscribe(user => { if (!user) window.location.href = 'dashboard.html'; }));
 </script>
 </body>
 </html>
