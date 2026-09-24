@@ -265,6 +265,15 @@ export async function getDocument(id) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
+// Reuses getDocuments' existing fetch-all-filter-client-side pattern instead of a new
+// Firestore query shape — used to find documents linking back to a given quotation/invoice
+// (e.g. field='sourceQuotationId') without needing a composite index.
+export async function getLinkedDocuments(uid, field, id) {
+  if (!id) return [];
+  const all = await getDocuments(uid);
+  return all.filter(d => d[field] === id);
+}
+
 export async function saveDocument(uid, data) {
   const ref = await addDoc(collection(db, 'documents'), { ...data, uid });
   return { id: ref.id };

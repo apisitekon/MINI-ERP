@@ -229,6 +229,12 @@
       <button class="nav-item w-full" id="act-print">
         <span class="material-symbols-outlined">print</span> พิมพ์ / บันทึก PDF
       </button>
+      <button class="nav-item w-full" id="act-create-invoice" style="display:none;">
+        <span class="material-symbols-outlined">add_circle</span> ออกใบแจ้งหนี้
+      </button>
+      <button class="nav-item w-full" id="act-create-receipt" style="display:none;">
+        <span class="material-symbols-outlined">receipt</span> ออกใบเสร็จ
+      </button>
       <button class="nav-item w-full" id="act-paid" style="color:var(--color-status-paid);">
         <span class="material-symbols-outlined">check_circle</span> ทำเครื่องหมายชำระแล้ว
       </button>
@@ -250,7 +256,7 @@ import './js/router.js';
 import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
 import { subscribe } from './js/auth-state.js';
 import { requireAuth, signOutUser, showToast, formatTHB, formatDate, statusBadge, renderNav, navigate, openModal, closeModal } from './js/app.js';
-import { getDocuments, updateDocument, deleteDocument } from './js/firebase-config.js';
+import { getDocuments, updateDocument, deleteDocument, getLinkedDocuments } from './js/firebase-config.js';
 
 // Export helpers for onclick attrs
 window.navigate = navigate;
@@ -372,7 +378,10 @@ function renderTable() {
       <tr style="cursor:pointer;" onclick="navigate('document-editor', {id:'${doc.id}'})">
         <td class="font-mono font-medium">${doc.number || '—'}</td>
         <td>${TYPE_LABELS[doc.type] || doc.type || '—'}</td>
-        <td>${doc.customerName || '—'}</td>
+        <td>
+          ${doc.customerName || '—'}
+          ${(doc.sourceQuotationNumber || doc.sourceInvoiceNumber) ? `<div style="font-size:11px;color:var(--color-secondary);margin-top:2px;">จาก ${doc.sourceQuotationNumber || doc.sourceInvoiceNumber}</div>` : ''}
+        </td>
         <td>${formatDate(doc.date)}</td>
         <td>${formatDate(doc.dueDate)}</td>
         <td class="text-right">${formatTHB(doc.subtotal)}</td>
@@ -398,6 +407,7 @@ function renderTable() {
           <div>
             <div class="mobile-card-id">${doc.number || '—'}</div>
             <div class="mobile-card-client">${doc.customerName || '—'} &nbsp;·&nbsp; ${TYPE_LABELS[doc.type] || ''}</div>
+            ${(doc.sourceQuotationNumber || doc.sourceInvoiceNumber) ? `<div style="font-size:11px;color:var(--color-secondary);margin-top:2px;">จาก ${doc.sourceQuotationNumber || doc.sourceInvoiceNumber}</div>` : ''}
           </div>
           ${statusBadge(doc.status)}
         </div>
@@ -433,6 +443,8 @@ window.openAction = function(id) {
   document.getElementById('act-paid').style.display   = selectedDoc.status === 'paid' ? 'none' : 'flex';
   document.getElementById('act-pending').style.display = selectedDoc.status === 'pending' ? 'none' : 'flex';
   document.getElementById('act-cancel').style.display  = selectedDoc.status === 'cancelled' ? 'none' : 'flex';
+  document.getElementById('act-create-invoice').style.display = selectedDoc.type === 'QUOTATION' ? 'flex' : 'none';
+  document.getElementById('act-create-receipt').style.display = (selectedDoc.type === 'INVOICE' && selectedDoc.status === 'paid') ? 'flex' : 'none';
   openModal('action-modal');
 };
 
@@ -443,6 +455,16 @@ function setupActionButtons() {
   document.getElementById('act-print').addEventListener('click', () => {
     if (selectedDoc) window.open(`document-print.html?id=${encodeURIComponent(selectedDoc.id)}`, '_blank');
     closeModal('action-modal');
+  });
+  document.getElementById('act-create-invoice').addEventListener('click', () => {
+    if (!selectedDoc) return;
+    closeModal('action-modal');
+    navigate('document-editor', { docType: 'INVOICE', sourceQuotationId: selectedDoc.id, customerId: selectedDoc.customerId || '' });
+  });
+  document.getElementById('act-create-receipt').addEventListener('click', () => {
+    if (!selectedDoc) return;
+    closeModal('action-modal');
+    navigate('document-editor', { docType: 'RECEIPT', sourceInvoiceId: selectedDoc.id, customerId: selectedDoc.customerId || '' });
   });
   const statusActions = [
     { id: 'act-paid',    status: 'paid',      msg: '✅ ทำเครื่องหมายชำระแล้ว' },
@@ -459,7 +481,17 @@ function setupActionButtons() {
     });
   });
   document.getElementById('act-delete').addEventListener('click', async () => {
-    if (!selectedDoc || !confirm(`ลบ "${selectedDoc.number}" ใช่หรือไม่?`)) return;
+    if (!selectedDoc) return;
+    let msg = `ลบ "${selectedDoc.number}" ใช่หรือไม่?`;
+    if (selectedDoc.type === 'QUOTATION' || (selectedDoc.type === 'INVOICE' && selectedDoc.status === 'paid')) {
+      const field = selectedDoc.type === 'QUOTATION' ? 'sourceQuotationId' : 'sourceInvoiceId';
+      const linked = await getLinkedDocuments(currentUser.uid, field, selectedDoc.id);
+      if (linked.length > 0) {
+        const kind = selectedDoc.type === 'QUOTATION' ? 'ใบแจ้งหนี้' : 'ใบเสร็จ';
+        msg = `มี${kind}อ้างอิงเอกสารนี้อยู่ ${linked.length} ฉบับ ต้องการลบหรือไม่?`;
+      }
+    }
+    if (!confirm(msg)) return;
     await deleteDocument(selectedDoc.id);
     showToast('🗑️ ลบเอกสารแล้ว');
     closeModal('action-modal');
@@ -469,9 +501,9 @@ function setupActionButtons() {
 
 // ---- CSV Export ----
 window.exportCsv = function() {
-  const rows = [['เลขที่เอกสาร','ประเภท','ลูกค้า','วันที่','ยอดรวม','WHT','ยอดสุทธิ','สถานะ']];
+  const rows = [['เลขที่เอกสาร','ประเภท','ลูกค้า','วันที่','ยอดรวม','WHT','ยอดสุทธิ','สถานะ','อ้างอิงเอกสาร']];
   filteredDocs.forEach(d => {
-    rows.push([d.number,TYPE_LABELS[d.type]||d.type,d.customerName,formatDate(d.date),d.subtotal,d.whtAmount,d.netTotal,d.status]);
+    rows.push([d.number,TYPE_LABELS[d.type]||d.type,d.customerName,formatDate(d.date),d.subtotal,d.whtAmount,d.netTotal,d.status,d.sourceQuotationNumber||d.sourceInvoiceNumber||'']);
   });
   const csv = rows.map(r => r.map(c => `"${c||''}"`).join(',')).join('\n');
   const blob = new Blob(['\ufeff'+csv], { type: 'text/csv;charset=utf-8;' });

@@ -173,6 +173,8 @@ requireAuth(async (user) => {
         <div class="party-label" style="margin-top:10px;">วันที่ออกเอกสาร</div>
         <div>${formatDate(doc.date)}</div>
         ${doc.dueDate ? `<div class="party-label" style="margin-top:10px;">วันครบกำหนด</div><div>${formatDate(doc.dueDate)}</div>` : ''}
+        ${doc.sourceQuotationNumber ? `<div class="party-label" style="margin-top:10px;">อ้างอิงใบเสนอราคาเลขที่</div><div>${escHtml(doc.sourceQuotationNumber)}</div>` : ''}
+        ${doc.sourceInvoiceNumber ? `<div class="party-label" style="margin-top:10px;">อ้างอิงใบแจ้งหนี้เลขที่</div><div>${escHtml(doc.sourceInvoiceNumber)}</div>` : ''}
       </div>
     </div>
 

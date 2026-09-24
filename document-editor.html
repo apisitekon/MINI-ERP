@@ -196,6 +196,8 @@
         <div class="page-actions desktop-only" id="status-badge-wrap"></div>
       </div>
 
+      <div id="source-banner" class="editor-card" style="display:none;margin-bottom:20px;padding:14px 18px;"></div>
+
       <div class="editor-layout">
 
         <!-- LEFT: Main Editor -->
@@ -293,6 +295,15 @@
         <!-- RIGHT: Summary -->
         <div style="display:flex;flex-direction:column;gap:20px;">
 
+          <!-- Billing Summary (quotations only) -->
+          <div class="editor-card" id="billing-summary-wrap" style="display:none;">
+            <div class="editor-card-title">
+              <span class="material-symbols-outlined">payments</span>
+              สรุปการเรียกเก็บเงิน
+            </div>
+            <div id="billing-summary-body"></div>
+          </div>
+
           <!-- Summary Card -->
           <div class="editor-card" style="position:sticky;top:24px;">
             <div class="editor-card-title">
@@ -345,6 +356,10 @@
               <button class="btn btn-ghost w-full" id="btn-print" style="display:none;" onclick="printDoc()">
                 <span class="material-symbols-outlined" style="font-size:18px;">print</span>
                 พิมพ์ / บันทึก PDF
+              </button>
+              <button class="btn btn-ghost w-full" id="btn-create-receipt" style="display:none;" onclick="createReceiptFromInvoice()">
+                <span class="material-symbols-outlined" style="font-size:18px;">receipt</span>
+                ออกใบเสร็จจากใบแจ้งหนี้นี้
               </button>
             </div>
 
@@ -399,7 +414,7 @@ import './js/router.js';
 import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
 import { subscribe } from './js/auth-state.js';
 import { requireAuth, signOutUser, showToast, formatTHB, statusBadge, renderNav, navigate, calcDocument, openModal, closeModal } from './js/app.js';
-import { getCustomers, getProducts, getDocument, saveDocument, updateDocument, deleteDocument, generateDocNumber, getDocuments, Timestamp } from './js/firebase-config.js';
+import { getCustomers, getProducts, getDocument, saveDocument, updateDocument, deleteDocument, generateDocNumber, getDocuments, getLinkedDocuments, Timestamp } from './js/firebase-config.js';
 
 window.navigate = navigate;
 window.closeModal = closeModal;
@@ -413,6 +428,15 @@ let allProducts = [];
 let lineItems = [{ name: '', qty: 1, price: 0 }];
 let whtEnabled = true;
 window.lineItems = lineItems;
+let sourceQuotationId = null;
+let sourceQuotationNumber = null;
+let sourceInvoiceId = null;
+let sourceInvoiceNumber = null;
+// Resolves once any in-flight source-quotation/source-invoice fetch has finished setting
+// the variables above. saveDraft()/finalizeDoc() await this before building the save
+// payload — without it, a fast save could persist before the async link fetch resolves,
+// silently dropping the reference.
+let sourceLoadPromise = Promise.resolve();
 
 // ---- Init ----
 async function init() {
@@ -427,24 +451,14 @@ async function init() {
     await signOutUser(); window.location.href = 'dashboard.html';
   });
 
-  // Load doc ID and preset values from URL
+  // Load doc ID from URL. customerId/docType/sourceQuotationId/sourceInvoiceId presets are
+  // applied later inside requireAuth's callback (see the `else` branch below) — applying
+  // them here was both a no-op (customer-select has no options loaded yet at this point)
+  // and, for docType, an outright bug: onTypeChange() is assigned via `window.onTypeChange
+  // = function(){}` further down this script, a runtime statement not a hoisted function
+  // declaration, so calling it this early (before that assignment has executed) throws.
   const params = new URLSearchParams(window.location.search);
   docId = params.get('id');
-  const presetCustomerId = params.get('customerId');
-  const presetDocType = params.get('docType');
-
-  if (presetDocType) {
-    document.getElementById('doc-type').value = presetDocType;
-    onTypeChange();
-  }
-
-  if (presetCustomerId) {
-    const customerSelect = document.getElementById('customer-select');
-    if ([...customerSelect.options].some(option => option.value === presetCustomerId)) {
-      customerSelect.value = presetCustomerId;
-      onCustomerSelect();
-    }
-  }
 
   document.getElementById('product-modal').addEventListener('click', e => {
     if (e.target === document.getElementById('product-modal')) closeModal('product-modal');
@@ -475,11 +489,11 @@ registerCleanup(requireAuth(async (user) => {
   if (docId) {
     await loadExistingDoc();
   } else {
-    renderLineItems();
-    updateSummary();
     const params = new URLSearchParams(window.location.search);
     const presetCustomerId = params.get('customerId');
     const presetDocType = params.get('docType');
+    const presetSourceQuotationId = params.get('sourceQuotationId');
+    const presetSourceInvoiceId = params.get('sourceInvoiceId');
 
     if (presetDocType) {
       document.getElementById('doc-type').value = presetDocType;
@@ -491,6 +505,23 @@ registerCleanup(requireAuth(async (user) => {
       customerSelect.value = presetCustomerId;
       onCustomerSelect();
     }
+
+    if (presetSourceInvoiceId) {
+      // copies the source invoice's line items and calls renderLineItems()/updateSummary()
+      // itself — a receipt should mirror exactly what was invoiced. Exposed via
+      // sourceLoadPromise so finalizeDoc()/saveDraft() can't save before this resolves.
+      sourceLoadPromise = loadSourceInvoiceAndCopyItems(presetSourceInvoiceId);
+    } else {
+      renderLineItems();
+      updateSummary();
+    }
+
+    if (presetSourceQuotationId) {
+      // reference only — doesn't touch line items, the installment amount is typed manually
+      sourceLoadPromise = loadSourceQuotationBanner(presetSourceQuotationId);
+    }
+
+    await sourceLoadPromise;
   }
 }));
 
@@ -513,6 +544,9 @@ async function loadExistingDoc() {
   if (existingDoc.status === 'paid') {
     document.getElementById('btn-finalize').style.display = 'none';
     document.getElementById('btn-save-draft').style.display = 'none';
+    if (existingDoc.type === 'INVOICE') {
+      document.getElementById('btn-create-receipt').style.display = 'flex';
+    }
   } else if (existingDoc.status === 'pending') {
     document.getElementById('btn-mark-paid').style.display = 'flex';
   }
@@ -531,9 +565,131 @@ async function loadExistingDoc() {
   toggle.classList.toggle('on', whtEnabled);
   toggle.setAttribute('aria-checked', whtEnabled);
 
+  // Restore linking fields so they round-trip through any later saveDraft()/finalizeDoc()
+  sourceQuotationId = existingDoc.sourceQuotationId || null;
+  sourceQuotationNumber = existingDoc.sourceQuotationNumber || null;
+  sourceInvoiceId = existingDoc.sourceInvoiceId || null;
+  sourceInvoiceNumber = existingDoc.sourceInvoiceNumber || null;
+
+  renderSourceBanner();
+  if (existingDoc.type === 'QUOTATION') {
+    renderBillingSummary(); // fire-and-forget — progressive fill-in, gated to quotations only
+  }
+
   renderLineItems();
   updateSummary();
 }
+
+// ---- Document Linking (Quotation → Invoice installments → Receipt) ----
+
+// Renders a small reference line ("อ้างอิงใบเสนอราคาเลขที่: ...") when this document
+// carries a link back to its source quotation or invoice. Safe to call unconditionally —
+// renders nothing when neither link is present.
+function renderSourceBanner() {
+  const el = document.getElementById('source-banner');
+  if (sourceQuotationNumber) {
+    el.innerHTML = `<span style="font-size:13px;color:var(--color-secondary);">
+      <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;">link</span>
+      อ้างอิงใบเสนอราคาเลขที่: <strong>${escHtml(sourceQuotationNumber)}</strong>
+    </span>`;
+    el.style.display = 'block';
+  } else if (sourceInvoiceNumber) {
+    el.innerHTML = `<span style="font-size:13px;color:var(--color-secondary);">
+      <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;">link</span>
+      อ้างอิงใบแจ้งหนี้เลขที่: <strong>${escHtml(sourceInvoiceNumber)}</strong>
+    </span>`;
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+// Fetches all invoices linked to this quotation and renders totals + a list of them.
+// Gated to type==='QUOTATION' by the caller — don't fetch linked docs for other types.
+async function renderBillingSummary() {
+  const wrap = document.getElementById('billing-summary-wrap');
+  const body = document.getElementById('billing-summary-body');
+  wrap.style.display = 'block';
+  body.innerHTML = `<div style="text-align:center;padding:16px;"><span class="spinner"></span></div>`;
+
+  const gen = currentGeneration();
+  const linked = await getLinkedDocuments(currentUser.uid, 'sourceQuotationId', docId);
+  if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
+
+  const invoicedSoFar = linked.filter(d => d.status !== 'cancelled').reduce((s, d) => s + (d.netTotal || 0), 0);
+  const paidSoFar = linked.filter(d => d.status === 'paid').reduce((s, d) => s + (d.netTotal || 0), 0);
+  const remaining = (existingDoc.netTotal || 0) - invoicedSoFar;
+
+  const listHtml = linked.length === 0
+    ? `<div style="padding:10px 0;font-size:13px;color:var(--color-secondary);">ยังไม่มีใบแจ้งหนี้อ้างอิงใบเสนอราคานี้</div>`
+    : linked.map(inv => `
+        <a href="document-editor.html?id=${inv.id}" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-md);background:var(--color-surface-container-low);font-size:13px;margin-top:6px;">
+          <span>${escHtml(inv.number || '—')}</span>
+          ${statusBadge(inv.status)}
+          <span style="font-weight:600;">THB ${formatTHB(inv.netTotal)}</span>
+        </a>
+      `).join('');
+
+  body.innerHTML = `
+    <div class="summary-row"><span class="label">มูลค่าตามใบเสนอราคา</span><span class="value">THB ${formatTHB(existingDoc.netTotal)}</span></div>
+    <div class="summary-row"><span class="label">เรียกเก็บแล้ว</span><span class="value">THB ${formatTHB(invoicedSoFar)}</span></div>
+    <div class="summary-row"><span class="label">ชำระแล้ว</span><span class="value">THB ${formatTHB(paidSoFar)}</span></div>
+    <div class="summary-row summary-row--total"><span class="label">คงเหลือ</span><span class="value">THB ${formatTHB(remaining)}</span></div>
+    ${listHtml}
+    <button class="btn btn-secondary w-full" style="margin-top:14px;"
+      onclick="navigate('document-editor', {docType:'INVOICE', sourceQuotationId:'${docId}', customerId:'${existingDoc.customerId || ''}'})">
+      <span class="material-symbols-outlined" style="font-size:16px;">add</span>
+      ออกใบแจ้งหนี้จากใบเสนอราคานี้
+    </button>
+  `;
+}
+
+// Copies a source invoice's line items/WHT/notes into a brand-new receipt being created —
+// a receipt should mirror exactly what was invoiced, unlike the quotation→invoice link
+// which is reference-only (the installment amount is typed manually).
+async function loadSourceInvoiceAndCopyItems(invId) {
+  const gen = currentGeneration();
+  const src = await getDocument(invId);
+  if (!isCurrent(gen)) return;
+  if (!src) {
+    showToast('ไม่พบใบแจ้งหนี้ต้นทาง', 'error');
+    renderLineItems();
+    updateSummary();
+    return;
+  }
+
+  sourceInvoiceId = invId;
+  sourceInvoiceNumber = src.number || null;
+
+  lineItems = (src.items || []).map(i => ({ ...i })); // clone — never share refs with the fetched doc
+  whtEnabled = src.whtRate > 0;
+  const toggle = document.getElementById('wht-toggle');
+  toggle.classList.toggle('on', whtEnabled);
+  toggle.setAttribute('aria-checked', whtEnabled);
+  if (src.notes) document.getElementById('doc-notes').value = src.notes;
+
+  renderLineItems();
+  updateSummary();
+  renderSourceBanner();
+}
+
+// Reference-only: fetches the source quotation for its number, then renders the banner.
+// Does not touch line items — the invoice's own amount is entered manually.
+async function loadSourceQuotationBanner(quoId) {
+  const gen = currentGeneration();
+  const src = await getDocument(quoId);
+  if (!isCurrent(gen)) return;
+  if (!src) { showToast('ไม่พบใบเสนอราคาต้นทาง', 'error'); return; }
+
+  sourceQuotationId = quoId;
+  sourceQuotationNumber = src.number || null;
+  renderSourceBanner();
+}
+
+window.createReceiptFromInvoice = function() {
+  if (!docId || !existingDoc) return;
+  navigate('document-editor', { docType: 'RECEIPT', sourceInvoiceId: docId, customerId: existingDoc.customerId || '' });
+};
 
 // ---- Line Items ----
 window.addLineItem = function(name='', qty=1, price=0) {
@@ -734,6 +890,10 @@ function buildDocData(status) {
     date: dateVal ? Timestamp.fromDate(new Date(dateVal)) : null,
     dueDate: dueVal ? Timestamp.fromDate(new Date(dueVal)) : null,
     notes: document.getElementById('doc-notes').value || null,
+    sourceQuotationId: sourceQuotationId || null,
+    sourceQuotationNumber: sourceQuotationNumber || null,
+    sourceInvoiceId: sourceInvoiceId || null,
+    sourceInvoiceNumber: sourceInvoiceNumber || null,
   };
 }
 
@@ -750,6 +910,7 @@ window.saveDraft = async function() {
   try {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>';
+    await sourceLoadPromise; // don't save before a pending source-quotation/-invoice fetch resolves
     const data = buildDocData('draft');
     if (docId) {
       await updateDocument(docId, data);
@@ -778,6 +939,7 @@ window.finalizeDoc = async function() {
   try {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>';
+    await sourceLoadPromise; // don't save before a pending source-quotation/-invoice fetch resolves
     const data = buildDocData(status);
     if (docId) {
       await updateDocument(docId, data);
@@ -805,7 +967,19 @@ window.markPaid = async function() {
 };
 
 window.confirmDelete = async function() {
-  if (!docId || !confirm('ยืนยันการลบเอกสารนี้?')) return;
+  if (!docId) return;
+  let msg = 'ยืนยันการลบเอกสารนี้?';
+  if (existingDoc?.type === 'QUOTATION' || (existingDoc?.type === 'INVOICE' && existingDoc.status === 'paid')) {
+    // Soft warning only — deletes are hard/non-cascading, so a linked invoice/receipt's
+    // reference would dangle afterward, but that's tolerated (rendered as-is, no crash).
+    const field = existingDoc.type === 'QUOTATION' ? 'sourceQuotationId' : 'sourceInvoiceId';
+    const linked = await getLinkedDocuments(currentUser.uid, field, docId);
+    if (linked.length > 0) {
+      const kind = existingDoc.type === 'QUOTATION' ? 'ใบแจ้งหนี้' : 'ใบเสร็จ';
+      msg = `มี${kind}อ้างอิงเอกสารนี้อยู่ ${linked.length} ฉบับ ต้องการลบหรือไม่?`;
+    }
+  }
+  if (!confirm(msg)) return;
   await deleteDocument(docId);
   showToast('🗑️ ลบเอกสารแล้ว');
   setTimeout(() => navigate('documents'), 1000);
