@@ -65,6 +65,8 @@
     .notes-block { margin-top: 24px; white-space: pre-wrap; font-size: 12px; color: #444; }
 
     .sign-grid { display: flex; justify-content: space-between; margin-top: 60px; gap: 40px; }
+    .sign-grid--single { justify-content: flex-end; }
+    .sign-grid--single .sign-block { flex: none; width: 240px; }
     .sign-block { flex: 1; text-align: center; }
     .sign-line { border-bottom: 1px dashed #999; height: 50px; }
     .sign-label { margin-top: 8px; font-size: 12px; color: #555; }
@@ -100,7 +102,7 @@
 <script type="module">
 import { toDataURL as generateQrDataUrl } from "https://cdn.jsdelivr.net/npm/qrcode@1.5.3/+esm";
 import { requireAuth, formatTHB, formatDate, bahtText, generatePromptPayPayload } from './js/app.js';
-import { getDocument, getUserProfile, getCustomers } from './js/firebase-config.js';
+import { getDocument, getUserProfile, getCustomers, resolveBusiness } from './js/firebase-config.js';
 
 const TYPE_TITLES = {
   QUOTATION: { th: 'ใบเสนอราคา', en: 'QUOTATION' },
@@ -121,10 +123,14 @@ requireAuth(async (user) => {
 
   if (!doc) { paper.innerHTML = '<p style="text-align:center;padding:60px;">ไม่พบเอกสาร</p>'; return; }
 
+  // The business this document was issued from (multi-business accounts); falls back to the
+  // default business for documents created before multi-business support.
+  const biz = resolveBusiness(profile, doc.businessId);
+
   let promptPayQrDataUrl = null;
-  if (doc.type === 'INVOICE' && profile?.businessPromptPay) {
+  if (doc.type === 'INVOICE' && biz?.promptPay) {
     try {
-      const payload = generatePromptPayPayload(profile.businessPromptPay, doc.netTotal);
+      const payload = generatePromptPayPayload(biz.promptPay, doc.netTotal);
       promptPayQrDataUrl = await generateQrDataUrl(payload, { margin: 1, width: 240 });
     } catch (e) {
       console.error('PromptPay QR generation failed:', e);
@@ -147,14 +153,14 @@ requireAuth(async (user) => {
   `).join('');
 
   const businessMetaParts = [];
-  if (profile?.businessPhone) businessMetaParts.push(`โทร. ${escHtml(profile.businessPhone)}`);
-  if (profile?.businessTaxId) businessMetaParts.push(`เลขประจำตัวผู้เสียภาษี: ${escHtml(profile.businessTaxId)}`);
+  if (biz?.phone) businessMetaParts.push(`โทร. ${escHtml(biz.phone)}`);
+  if (biz?.taxId) businessMetaParts.push(`เลขประจำตัวผู้เสียภาษี: ${escHtml(biz.taxId)}`);
 
   paper.innerHTML = `
     <div class="doc-header">
       <div class="doc-title">${title.th} (${title.en})</div>
-      <div class="biz-name">${escHtml(profile?.businessName || user.displayName || '')}</div>
-      ${profile?.businessAddress ? `<div class="biz-meta">${escHtml(profile.businessAddress)}</div>` : ''}
+      <div class="biz-name">${escHtml(biz?.name || user.displayName || '')}</div>
+      ${biz?.address ? `<div class="biz-meta">${escHtml(biz.address)}</div>` : ''}
       ${businessMetaParts.length ? `<div class="biz-meta">${businessMetaParts.join(' &nbsp;·&nbsp; ')}</div>` : ''}
     </div>
 
@@ -194,7 +200,7 @@ requireAuth(async (user) => {
     <div class="totals-block">
       <table class="totals-table">
         <tr><td>ยอดรวมก่อนหัก</td><td class="text-right">${formatTHB(doc.subtotal)}</td></tr>
-        ${doc.whtAmount > 0 ? `<tr><td>หัก ณ ที่จ่าย (${(doc.whtRate * 100).toFixed(0)}%)</td><td class="text-right">- ${formatTHB(doc.whtAmount)}</td></tr>` : ''}
+        ${doc.whtAmount > 0 ? `<tr><td>หัก ณ ที่จ่าย (${(doc.whtRate * 100).toFixed(0)}%${doc.whtViaEWht ? ' · e-WHT' : ''})</td><td class="text-right">- ${formatTHB(doc.whtAmount)}</td></tr>` : ''}
         <tr class="net"><td>ยอดสุทธิ</td><td class="text-right">THB ${formatTHB(doc.netTotal)}</td></tr>
       </table>
     </div>
@@ -211,6 +217,13 @@ requireAuth(async (user) => {
 
     ${doc.notes ? `<div class="notes-block"><strong>หมายเหตุ:</strong>\n${escHtml(doc.notes)}</div>` : ''}
 
+    ${doc.type === 'RECEIPT' ? `
+    <div class="sign-grid sign-grid--single">
+      <div class="sign-block">
+        <div class="sign-line"></div>
+        <div class="sign-label">ผู้รับเงิน<br>วันที่ ____ / ____ / ____</div>
+      </div>
+    </div>` : `
     <div class="sign-grid">
       <div class="sign-block">
         <div class="sign-line"></div>
@@ -220,7 +233,7 @@ requireAuth(async (user) => {
         <div class="sign-line"></div>
         <div class="sign-label">ผู้อนุมัติ / ผู้รับเอกสาร<br>วันที่ ____ / ____ / ____</div>
       </div>
-    </div>
+    </div>`}
   `;
 });
 

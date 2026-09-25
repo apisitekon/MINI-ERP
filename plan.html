@@ -109,6 +109,13 @@
             </div>
             <div class="usage-bar-track"><div class="usage-bar-fill" id="usage-product-bar" style="width:0%;"></div></div>
           </div>
+          <div class="usage-row">
+            <div class="usage-label">
+              <span>ธุรกิจ (ข้อมูลผู้ออกเอกสาร)</span>
+              <strong id="usage-business-text">0 / 0</strong>
+            </div>
+            <div class="usage-bar-track"><div class="usage-bar-fill" id="usage-business-bar" style="width:0%;"></div></div>
+          </div>
         </div>
 
         <!-- Upgrade Card -->
@@ -118,7 +125,7 @@
             ต้องการเพิ่มจำนวน?
           </div>
           <p style="font-size:13px;color:var(--color-secondary);margin-bottom:16px;">
-            ติดต่อเราเพื่ออัปเกรดแพ็กเกจและเพิ่มจำนวนลูกค้า/สินค้าที่บันทึกได้
+            ติดต่อเราเพื่ออัปเกรดแพ็กเกจและเพิ่มจำนวนลูกค้า/สินค้า/ธุรกิจที่บันทึกได้ — Pro รองรับสูงสุด 3 ธุรกิจ ต้องการมากกว่านั้นขอใบเสนอราคาได้
           </p>
           <a class="btn btn-primary" href="mailto:apisitekon@gmail.com?subject=ขออัปเกรดแพ็กเกจ Thai ERP">
             <span class="material-symbols-outlined" style="font-size:18px;">mail</span>
@@ -170,6 +177,7 @@ function renderUsage(u) {
 
   setBar('customer', u.customerCount, u.customerLimit);
   setBar('product', u.productCount, u.productLimit);
+  setBar('business', u.businessCount, u.businessLimit);
 }
 
 function setBar(kind, count, limit) {

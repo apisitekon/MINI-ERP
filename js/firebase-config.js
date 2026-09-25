@@ -53,9 +53,11 @@ const ADMIN_EMAIL = 'apisitekon@gmail.com';
 
 // ---- Plans ----
 export const PLANS = {
-  free: { label: 'Free', customerLimit: 50,  productLimit: 100  },
-  pro:  { label: 'Pro',  customerLimit: 500, productLimit: 1000 },
+  free: { label: 'Free', customerLimit: 50,  productLimit: 100,  businessLimit: 1 },
+  pro:  { label: 'Pro',  customerLimit: 500, productLimit: 1000, businessLimit: 3 },
 };
+// Contact for plan upgrades and custom quotes (e.g. more than 3 businesses on Pro).
+export const ADMIN_CONTACT_EMAIL = 'apisitekon@gmail.com';
 export const DEFAULT_PLAN = 'free';
 
 function defaultPlanFields() {
@@ -141,6 +143,68 @@ export async function getUserProfile(uid) {
 }
 export async function saveUserProfile(uid, data) {
   await setDoc(doc(db, 'users', uid), data, { merge: true });
+}
+
+// --- Businesses (several issuer profiles per account) ---
+// Stored on users/{uid} as `businesses: [{ id, name, taxId, phone, promptPay, address }]`
+// plus `defaultBusinessId`. The legacy flat fields (businessName, businessTaxId, …) are
+// kept mirrored from the default business so pages/documents that predate multi-business
+// keep working. The list size is capped per plan by firestore.rules (Free 1, Pro 3, or an
+// admin-set `businessLimit` override for custom quotes).
+export function businessLimitFor(profile) {
+  if (typeof profile?.businessLimit === 'number') return profile.businessLimit;
+  return (PLANS[profile?.plan] || PLANS[DEFAULT_PLAN]).businessLimit;
+}
+
+export function getBusinesses(profile) {
+  if (Array.isArray(profile?.businesses) && profile.businesses.length) return profile.businesses;
+  // Legacy single-business profile -> present it as a one-item list.
+  if (profile && (profile.businessName || profile.businessTaxId || profile.businessAddress
+      || profile.businessPhone || profile.businessPromptPay)) {
+    return [{
+      id: 'default',
+      name: profile.businessName || '',
+      taxId: profile.businessTaxId || '',
+      phone: profile.businessPhone || '',
+      promptPay: profile.businessPromptPay || '',
+      address: profile.businessAddress || '',
+    }];
+  }
+  return [];
+}
+
+export function getDefaultBusiness(profile) {
+  const list = getBusinesses(profile);
+  return list.find(b => b.id === profile?.defaultBusinessId) || list[0] || null;
+}
+
+// Businesses this account may currently issue documents from: the default first, then
+// the rest, capped at the plan limit (an account downgraded from Pro keeps its data but
+// only the first N stay selectable).
+export function getUsableBusinesses(profile) {
+  const list = getBusinesses(profile);
+  const def = getDefaultBusiness(profile);
+  const ordered = def ? [def, ...list.filter(b => b.id !== def.id)] : list;
+  return ordered.slice(0, Math.max(1, businessLimitFor(profile)));
+}
+
+// The business a document was issued from; falls back to the default business.
+export function resolveBusiness(profile, businessId) {
+  const list = getBusinesses(profile);
+  return (businessId && list.find(b => b.id === businessId)) || getDefaultBusiness(profile);
+}
+
+export async function saveBusinesses(uid, businesses, defaultBusinessId) {
+  const def = businesses.find(b => b.id === defaultBusinessId) || businesses[0] || null;
+  await setDoc(doc(db, 'users', uid), {
+    businesses,
+    defaultBusinessId: def?.id || null,
+    businessName: def?.name || '',
+    businessTaxId: def?.taxId || '',
+    businessPhone: def?.phone || '',
+    businessPromptPay: def?.promptPay || '',
+    businessAddress: def?.address || '',
+  }, { merge: true });
 }
 
 // --- Customers ---
@@ -236,6 +300,8 @@ export async function getPlanUsage(uid) {
     productLimit:  profile?.productLimit  ?? PLANS[DEFAULT_PLAN].productLimit,
     customerCount: profile?.customerCount ?? 0,
     productCount:  profile?.productCount  ?? 0,
+    businessLimit: businessLimitFor(profile),
+    businessCount: getBusinesses(profile).length,
   };
 }
 
@@ -246,8 +312,10 @@ export async function findUserByEmail(email) {
   return { uid: d.id, ...d.data() };
 }
 
-export async function updateUserPlan(uid, { plan, customerLimit, productLimit }) {
-  await setDoc(doc(db, 'users', uid), { plan, customerLimit, productLimit }, { merge: true });
+export async function updateUserPlan(uid, { plan, customerLimit, productLimit, businessLimit }) {
+  const data = { plan, customerLimit, productLimit };
+  if (typeof businessLimit === 'number') data.businessLimit = businessLimit;
+  await setDoc(doc(db, 'users', uid), data, { merge: true });
 }
 
 // --- Documents ---

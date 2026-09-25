@@ -100,6 +100,7 @@
             <div class="user-meta-row"><span>อีเมล</span><span id="r-email">-</span></div>
             <div class="user-meta-row"><span>ลูกค้าที่ใช้ไป</span><span id="r-customer-usage">-</span></div>
             <div class="user-meta-row"><span>สินค้าที่ใช้ไป</span><span id="r-product-usage">-</span></div>
+            <div class="user-meta-row"><span>ธุรกิจที่ใช้ไป</span><span id="r-business-usage">-</span></div>
           </div>
 
           <div class="form-grid">
@@ -118,6 +119,11 @@
             <div class="form-group">
               <label class="form-label" for="f-product-limit">ขีดจำกัดสินค้า</label>
               <input class="form-input" type="number" id="f-product-limit" min="0" step="1" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="f-business-limit">ขีดจำกัดธุรกิจ</label>
+              <input class="form-input" type="number" id="f-business-limit" min="1" step="1" />
+              <span style="font-size:12px;color:var(--color-secondary);">Free 1 · Pro 3 · มากกว่านี้ตั้งตามใบเสนอราคา (เลือก Custom)</span>
             </div>
           </div>
           <div style="margin-top:24px;text-align:right;">
@@ -141,7 +147,7 @@ import './js/router.js';
 import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
 import { subscribe } from './js/auth-state.js';
 import { requireAuth, signOutUser, showToast, renderNav, navigate } from './js/app.js';
-import { isAdmin, findUserByEmail, updateUserPlan, PLANS } from './js/firebase-config.js';
+import { isAdmin, findUserByEmail, updateUserPlan, PLANS, getBusinesses, businessLimitFor } from './js/firebase-config.js';
 
 window.navigate = navigate;
 
@@ -200,10 +206,12 @@ function renderResult(u) {
   document.getElementById('r-email').textContent = u.email || '-';
   document.getElementById('r-customer-usage').textContent = `${u.customerCount ?? 0} / ${u.customerLimit ?? PLANS.free.customerLimit}`;
   document.getElementById('r-product-usage').textContent = `${u.productCount ?? 0} / ${u.productLimit ?? PLANS.free.productLimit}`;
+  document.getElementById('r-business-usage').textContent = `${getBusinesses(u).length} / ${businessLimitFor(u)}`;
 
   document.getElementById('f-plan').value = u.plan || 'free';
   document.getElementById('f-customer-limit').value = u.customerLimit ?? PLANS.free.customerLimit;
   document.getElementById('f-product-limit').value = u.productLimit ?? PLANS.free.productLimit;
+  document.getElementById('f-business-limit').value = businessLimitFor(u);
 }
 
 window.onPlanSelectChange = function() {
@@ -211,6 +219,7 @@ window.onPlanSelectChange = function() {
   if (PLANS[plan]) {
     document.getElementById('f-customer-limit').value = PLANS[plan].customerLimit;
     document.getElementById('f-product-limit').value = PLANS[plan].productLimit;
+    document.getElementById('f-business-limit').value = PLANS[plan].businessLimit;
   }
 };
 
@@ -222,9 +231,10 @@ window.savePlan = async function() {
     const plan = document.getElementById('f-plan').value;
     const customerLimit = parseInt(document.getElementById('f-customer-limit').value, 10) || 0;
     const productLimit = parseInt(document.getElementById('f-product-limit').value, 10) || 0;
-    await updateUserPlan(foundUser.uid, { plan, customerLimit, productLimit });
+    const businessLimit = Math.max(1, parseInt(document.getElementById('f-business-limit').value, 10) || 1);
+    await updateUserPlan(foundUser.uid, { plan, customerLimit, productLimit, businessLimit });
     showToast('✅ อัปเดตแพ็กเกจเรียบร้อยแล้ว');
-    foundUser = { ...foundUser, plan, customerLimit, productLimit };
+    foundUser = { ...foundUser, plan, customerLimit, productLimit, businessLimit };
     renderResult(foundUser);
   } catch (e) {
     console.error(e);

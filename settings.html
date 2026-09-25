@@ -37,6 +37,50 @@
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
     .form-grid .full { grid-column: 1 / -1; }
+    .biz-quota {
+      margin-left: auto; font-size: 12px; font-weight: 600; white-space: nowrap;
+      color: var(--color-secondary); background: var(--color-surface-container);
+      padding: 4px 10px; border-radius: var(--radius-full);
+    }
+    .biz-quota.full { color: var(--color-error); }
+    .biz-hint { font-size: 13px; color: var(--color-secondary); margin: -8px 0 16px; }
+    .biz-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    .biz-list:empty { display: none; }
+    .biz-item {
+      display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+      border: 1px solid var(--color-workspace-border); border-radius: var(--radius-lg);
+    }
+    .biz-item.editing { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary); }
+    .biz-item.locked .biz-item-main { opacity: .55; }
+    .biz-item-main { flex: 1; min-width: 0; }
+    .biz-item-name {
+      font-weight: 600; color: var(--color-on-surface); overflow-wrap: anywhere;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .biz-item-meta { font-size: 12px; color: var(--color-secondary); margin-top: 2px; overflow-wrap: anywhere; }
+    .biz-tag {
+      font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: var(--radius-full);
+      background: var(--color-primary-fixed); color: var(--color-primary);
+    }
+    .biz-tag.muted { background: var(--color-surface-container); color: var(--color-secondary); }
+    .biz-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .biz-item-actions .btn-icon .material-symbols-outlined { font-size: 18px; }
+    .biz-item-actions .btn-icon[disabled] { opacity: .35; cursor: not-allowed; }
+    .biz-form-title { font-size: 14px; font-weight: 600; color: var(--color-on-surface); margin-bottom: 14px; }
+    .biz-form-actions { margin-top: 24px; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .biz-add-row { margin-top: 20px; padding-top: 20px; border-top: 1px dashed var(--color-workspace-border); }
+    .biz-limit-note {
+      display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap;
+      padding: 14px 16px; margin-bottom: 20px; border-radius: var(--radius-lg);
+      background: var(--color-surface-container-low); font-size: 13px; color: var(--color-secondary);
+    }
+    .biz-limit-note .material-symbols-outlined { color: var(--color-primary); }
+    .biz-limit-note .note-body { flex: 1; min-width: 200px; }
+    .biz-limit-note strong { color: var(--color-on-surface); }
+    @media (max-width: 600px) {
+      .biz-item { flex-wrap: wrap; }
+      .biz-item-actions { width: 100%; justify-content: flex-end; }
+    }
   </style>
 </head>
 <body>
@@ -118,33 +162,52 @@
           <div class="settings-card-title">
             <span class="material-symbols-outlined text-primary">storefront</span>
             ข้อมูลธุรกิจ (แสดงบนเอกสาร)
+            <span class="biz-quota" id="biz-quota" title="จำนวนธุรกิจที่ใช้ / ที่แพ็กเกจรองรับ">— / —</span>
           </div>
-          <div class="form-grid">
-            <div class="form-group full">
-              <label class="form-label" for="b-name">ชื่อธุรกิจ / ผู้ให้บริการ</label>
-              <input class="form-input" type="text" id="b-name" placeholder="เช่น นายสมชาย ใจดี หรือ บริษัท จำกัด" />
+          <p class="biz-hint">
+            เพิ่มได้หลายธุรกิจในบัญชีเดียว แล้วเลือกได้ว่าจะออกเอกสารในนามธุรกิจไหน —
+            ธุรกิจ <strong>ค่าเริ่มต้น</strong> จะถูกเลือกให้อัตโนมัติเมื่อสร้างเอกสารใหม่
+          </p>
+
+          <div class="biz-list" id="biz-list"></div>
+          <div class="biz-limit-note" id="biz-limit-note" style="display:none;"></div>
+
+          <div class="biz-form" id="biz-form">
+            <div class="biz-form-title" id="biz-form-title">แก้ไขข้อมูลธุรกิจ</div>
+            <div class="form-grid">
+              <div class="form-group full">
+                <label class="form-label" for="b-name">ชื่อธุรกิจ / ผู้ให้บริการ</label>
+                <input class="form-input" type="text" id="b-name" placeholder="เช่น นายสมชาย ใจดี หรือ บริษัท จำกัด" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="b-taxid">เลขประจำตัวผู้เสียภาษี (Tax ID)</label>
+                <input class="form-input" type="text" id="b-taxid" placeholder="X-XXXX-XXXXX-XX-X" maxlength="17" oninput="this.value=formatTaxId(this.value)" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="b-phone">เบอร์โทรศัพท์</label>
+                <input class="form-input" type="tel" id="b-phone" placeholder="08X-XXX-XXXX" />
+              </div>
+              <div class="form-group full">
+                <label class="form-label" for="b-promptpay">เบอร์พร้อมเพย์ / เลขบัตรประชาชน (PromptPay)</label>
+                <input class="form-input" type="text" id="b-promptpay" placeholder="เช่น 0812345678 หรือ 1234567890123" maxlength="17" />
+                <span style="font-size:12px;color:var(--color-secondary);">ใช้สร้าง QR Code รับชำระเงินบนใบแจ้งหนี้ กรอกเบอร์โทรศัพท์ 10 หลัก หรือเลขบัตรประชาชน/ผู้เสียภาษี 13 หลัก (เว้นว่างได้หากไม่ต้องการแสดง QR)</span>
+              </div>
+              <div class="form-group full">
+                <label class="form-label" for="b-address">ที่อยู่</label>
+                <textarea class="form-input" id="b-address" rows="3" placeholder="ระบุที่อยู่สำหรับออกเอกสาร"></textarea>
+              </div>
             </div>
-            <div class="form-group">
-              <label class="form-label" for="b-taxid">เลขประจำตัวผู้เสียภาษี (Tax ID)</label>
-              <input class="form-input" type="text" id="b-taxid" placeholder="X-XXXX-XXXXX-XX-X" maxlength="17" oninput="this.value=formatTaxId(this.value)" />
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="b-phone">เบอร์โทรศัพท์</label>
-              <input class="form-input" type="tel" id="b-phone" placeholder="08X-XXX-XXXX" />
-            </div>
-            <div class="form-group full">
-              <label class="form-label" for="b-promptpay">เบอร์พร้อมเพย์ / เลขบัตรประชาชน (PromptPay)</label>
-              <input class="form-input" type="text" id="b-promptpay" placeholder="เช่น 0812345678 หรือ 1234567890123" maxlength="17" />
-              <span style="font-size:12px;color:var(--color-secondary);">ใช้สร้าง QR Code รับชำระเงินบนใบแจ้งหนี้ กรอกเบอร์โทรศัพท์ 10 หลัก หรือเลขบัตรประชาชน/ผู้เสียภาษี 13 หลัก (เว้นว่างได้หากไม่ต้องการแสดง QR)</span>
-            </div>
-            <div class="form-group full">
-              <label class="form-label" for="b-address">ที่อยู่</label>
-              <textarea class="form-input" id="b-address" rows="3" placeholder="ระบุที่อยู่สำหรับออกเอกสาร"></textarea>
+            <div class="biz-form-actions">
+              <button class="btn btn-ghost" id="btn-cancel-biz" onclick="cancelBusinessEdit()" style="display:none;">ยกเลิก</button>
+              <button class="btn btn-primary" id="btn-save-biz" onclick="saveBusinessInfo()">
+                <span class="material-symbols-outlined" style="font-size:18px;">save</span> บันทึกข้อมูลธุรกิจ
+              </button>
             </div>
           </div>
-          <div style="margin-top:24px;text-align:right;">
-            <button class="btn btn-primary" id="btn-save-biz" onclick="saveBusinessInfo()">
-              <span class="material-symbols-outlined" style="font-size:18px;">save</span> บันทึกข้อมูลธุรกิจ
+
+          <div class="biz-add-row">
+            <button class="btn btn-secondary" id="btn-add-biz" onclick="startAddBusiness()">
+              <span class="material-symbols-outlined" style="font-size:18px;">add_business</span> เพิ่มธุรกิจ
             </button>
           </div>
         </div>
@@ -168,7 +231,7 @@
             </div>
           </div>
           <div style="margin-top:24px;text-align:right;">
-            <button class="btn btn-secondary" onclick="showToast('✅ บันทึกการตั้งค่าระบบแล้ว')">
+            <button class="btn btn-secondary" id="btn-save-sys" onclick="saveSystemSettings()">
               บันทึกการตั้งค่า
             </button>
           </div>
@@ -182,17 +245,45 @@
 <nav class="bottom-nav" id="bottom-nav"></nav>
 <div id="toast-container" class="toast-container"></div>
 
+<div class="modal-backdrop" id="biz-delete-modal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-header">
+      <span class="modal-title">ยืนยันการลบธุรกิจ</span>
+      <button class="modal-close" onclick="closeModal('biz-delete-modal')">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <p style="color:var(--color-secondary);font-size:14px;margin-bottom:4px;">ลบธุรกิจ <strong id="biz-delete-name"></strong> ใช่หรือไม่?</p>
+    <p style="font-size:12px;color:var(--color-error);">เอกสารที่เคยออกในนามธุรกิจนี้จะแสดงข้อมูลของธุรกิจค่าเริ่มต้นแทน</p>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('biz-delete-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="btn-confirm-biz-delete" onclick="confirmDeleteBusiness()" style="background:var(--color-error);">
+        <span class="material-symbols-outlined" style="font-size:18px;">delete</span> ลบ
+      </button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import './js/router.js';
 import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
 import { subscribe } from './js/auth-state.js';
-import { requireAuth, signOutUser, showToast, renderNav, formatTaxId, navigate } from './js/app.js';
-import { getUserProfile, saveUserProfile } from './js/firebase-config.js';
+import { requireAuth, signOutUser, showToast, renderNav, formatTaxId, navigate, openModal, closeModal } from './js/app.js';
+import {
+  getUserProfile, saveUserProfile, saveBusinesses, getBusinesses, getDefaultBusiness,
+  getUsableBusinesses, businessLimitFor, PLANS, DEFAULT_PLAN, ADMIN_CONTACT_EMAIL,
+} from './js/firebase-config.js';
 
 window.formatTaxId = formatTaxId;
 window.navigate = navigate;
+window.closeModal = closeModal;
 
 let currentUser = null;
+let profile = null;
+let businesses = [];      // [{ id, name, taxId, phone, promptPay, address }]
+let defaultId = null;
+let editingId = null;     // a business id, or 'new'
+let deletingId = null;
 
 function init() {
   renderNav('settings');
@@ -208,7 +299,7 @@ if (document.readyState === 'loading') {
 
 registerCleanup(requireAuth(async (user) => {
   currentUser = user;
-  
+
   // Set basic google info
   document.getElementById('sidebar-user-name').textContent = user.displayName || '';
   document.getElementById('settings-name').textContent = user.displayName || 'ไม่มีชื่อ';
@@ -217,45 +308,252 @@ registerCleanup(requireAuth(async (user) => {
     document.getElementById('settings-avatar').innerHTML = `<img src="${user.photoURL}" alt="Profile">`;
   }
 
-  // Load business info
-  if (getUserProfile) {
-    const gen = currentGeneration();
-    const profile = await getUserProfile(user.uid);
-    if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
-    if (profile) {
-      document.getElementById('b-name').value = profile.businessName || '';
-      document.getElementById('b-taxid').value = profile.businessTaxId || '';
-      document.getElementById('b-phone').value = profile.businessPhone || '';
-      document.getElementById('b-promptpay').value = profile.businessPromptPay || '';
-      document.getElementById('b-address').value = profile.businessAddress || '';
-      if (profile.defaultWht) document.getElementById('s-wht').value = profile.defaultWht;
-    } else {
-      document.getElementById('b-name').value = user.displayName || '';
-    }
+  const gen = currentGeneration();
+  profile = await getUserProfile(user.uid);
+  if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
+
+  businesses = getBusinesses(profile).map(b => ({ ...b }));
+  defaultId = getDefaultBusiness(profile)?.id || null;
+  if (profile?.defaultWht) document.getElementById('s-wht').value = profile.defaultWht;
+
+  if (businesses.length) {
+    editBusiness(defaultId);
+  } else {
+    // First business: prefill with the Google display name.
+    startAddBusiness();
+    document.getElementById('b-name').value = user.displayName || '';
   }
 }));
 
+// ---- helpers ----
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function limit() { return businessLimitFor(profile); }
+function planKey() { return profile?.plan || DEFAULT_PLAN; }
+function usableIds() {
+  return new Set(getUsableBusinesses({ ...profile, businesses, defaultBusinessId: defaultId }).map(b => b.id));
+}
+function newId() {
+  return 'b_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function renderList() {
+  const listEl = document.getElementById('biz-list');
+  const usable = usableIds();
+  const canDelete = businesses.length > 1;
+  listEl.innerHTML = businesses.map(b => {
+    const isDefault = b.id === defaultId;
+    const locked = !usable.has(b.id);
+    const meta = [b.taxId && `Tax ID ${b.taxId}`, b.phone, b.promptPay && `พร้อมเพย์ ${b.promptPay}`]
+      .filter(Boolean).map(esc).join(' · ') || 'ยังไม่ได้กรอกรายละเอียด';
+    return `
+      <div class="biz-item${b.id === editingId ? ' editing' : ''}${locked ? ' locked' : ''}">
+        <div class="biz-item-main">
+          <div class="biz-item-name">
+            ${esc(b.name) || '(ไม่มีชื่อ)'}
+            ${isDefault ? '<span class="biz-tag">ค่าเริ่มต้น</span>' : ''}
+            ${locked ? '<span class="biz-tag muted">เกินแพ็กเกจ</span>' : ''}
+          </div>
+          <div class="biz-item-meta">${meta}</div>
+        </div>
+        <div class="biz-item-actions">
+          ${!isDefault && !locked ? `<button class="btn-icon" title="ตั้งเป็นค่าเริ่มต้น" aria-label="ตั้งเป็นค่าเริ่มต้น" onclick="makeDefaultBusiness('${b.id}')"><span class="material-symbols-outlined">star</span></button>` : ''}
+          <button class="btn-icon" title="แก้ไข" aria-label="แก้ไข" onclick="editBusiness('${b.id}')"><span class="material-symbols-outlined">edit</span></button>
+          <button class="btn-icon" title="${canDelete ? 'ลบ' : 'ต้องมีอย่างน้อย 1 ธุรกิจ'}" aria-label="ลบ" ${canDelete ? '' : 'disabled'} onclick="askDeleteBusiness('${b.id}')"><span class="material-symbols-outlined">delete</span></button>
+        </div>
+      </div>`;
+  }).join('');
+
+  const quota = document.getElementById('biz-quota');
+  quota.textContent = `${businesses.length} / ${limit()} ธุรกิจ`;
+  quota.classList.toggle('full', businesses.length >= limit());
+  document.getElementById('btn-add-biz').disabled = editingId === 'new';
+  renderLimitNote(false);
+}
+
+// Shown when the account is at/over its plan limit (or right after trying to add past it).
+function renderLimitNote(forceShow) {
+  const note = document.getElementById('biz-limit-note');
+  const count = businesses.length;
+  const max = limit();
+  const over = count > max;
+  if (!(forceShow || over || (count >= max && count > 0 && editingId !== 'new'))) {
+    note.style.display = 'none';
+    return;
+  }
+  const plan = planKey();
+  const quoteHref = `mailto:${ADMIN_CONTACT_EMAIL}?subject=${encodeURIComponent('ขอใบเสนอราคา: เพิ่มจำนวนธุรกิจ (Thai ERP)')}`
+    + `&body=${encodeURIComponent(`อีเมลบัญชี: ${currentUser?.email || ''}\nแพ็กเกจปัจจุบัน: ${PLANS[plan]?.label || plan} (${max} ธุรกิจ)\nจำนวนธุรกิจที่ต้องการ: \nรายละเอียดเพิ่มเติม: `)}`;
+
+  let html;
+  if (plan === 'free' && !(typeof profile?.businessLimit === 'number')) {
+    html = `
+      <span class="material-symbols-outlined">workspace_premium</span>
+      <div class="note-body">
+        <strong>แพ็กเกจ Free เพิ่มได้ ${max} ธุรกิจ</strong><br>
+        อัปเกรดเป็น Pro เพื่อจัดการได้สูงสุด ${PLANS.pro.businessLimit} ธุรกิจในบัญชีเดียว
+      </div>
+      <a class="btn btn-primary" href="plan.html">
+        <span class="material-symbols-outlined" style="font-size:18px;color:inherit;">upgrade</span> อัปเกรดเป็น Pro
+      </a>`;
+  } else {
+    html = `
+      <span class="material-symbols-outlined">request_quote</span>
+      <div class="note-body">
+        <strong>ใช้ครบ ${max} ธุรกิจตามแพ็กเกจแล้ว</strong><br>
+        ต้องการมากกว่า ${max} ธุรกิจ? ติดต่อแอดมินเพื่อขอใบเสนอราคาแพ็กเกจพิเศษ
+      </div>
+      <a class="btn btn-secondary" href="${quoteHref}">
+        <span class="material-symbols-outlined" style="font-size:18px;">mail</span> ขอใบเสนอราคา
+      </a>`;
+  }
+  if (over) {
+    html += `<div class="note-body" style="flex-basis:100%;">
+      บัญชีนี้มี ${count} ธุรกิจ เกินแพ็กเกจปัจจุบัน — ธุรกิจที่ขึ้นว่า "เกินแพ็กเกจ" จะยังแก้ไข/ลบได้ แต่เลือกออกเอกสารไม่ได้</div>`;
+  }
+  note.innerHTML = html;
+  note.style.display = 'flex';
+}
+
+function fillForm(b) {
+  document.getElementById('b-name').value = b?.name || '';
+  document.getElementById('b-taxid').value = b?.taxId || '';
+  document.getElementById('b-phone').value = b?.phone || '';
+  document.getElementById('b-promptpay').value = b?.promptPay || '';
+  document.getElementById('b-address').value = b?.address || '';
+}
+
+// ---- actions ----
+window.editBusiness = function(id) {
+  editingId = id;
+  fillForm(businesses.find(b => b.id === id));
+  document.getElementById('biz-form-title').textContent = 'แก้ไขข้อมูลธุรกิจ';
+  document.getElementById('btn-cancel-biz').style.display = 'none';
+  renderList();
+};
+
+window.startAddBusiness = function() {
+  if (businesses.length >= limit()) {
+    renderLimitNote(true);
+    document.getElementById('biz-limit-note').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  editingId = 'new';
+  fillForm(null);
+  document.getElementById('biz-form-title').textContent = businesses.length ? 'เพิ่มธุรกิจใหม่' : 'ข้อมูลธุรกิจของคุณ';
+  document.getElementById('btn-cancel-biz').style.display = businesses.length ? 'inline-flex' : 'none';
+  renderList();
+  document.getElementById('b-name').focus();
+};
+
+window.cancelBusinessEdit = function() {
+  if (businesses.length) editBusiness(defaultId || businesses[0].id);
+};
+
+async function persist() {
+  await saveBusinesses(currentUser.uid, businesses, defaultId);
+  profile = { ...profile, businesses, defaultBusinessId: defaultId };
+}
+
 window.saveBusinessInfo = async function() {
+  const data = {
+    name: document.getElementById('b-name').value.trim(),
+    taxId: document.getElementById('b-taxid').value.trim(),
+    phone: document.getElementById('b-phone').value.trim(),
+    promptPay: document.getElementById('b-promptpay').value.trim(),
+    address: document.getElementById('b-address').value.trim(),
+  };
+  if (!data.name) {
+    showToast('กรุณากรอกชื่อธุรกิจ / ผู้ให้บริการ', 'error');
+    document.getElementById('b-name').focus();
+    return;
+  }
+
   const btn = document.getElementById('btn-save-biz');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>';
+  const prev = { businesses: businesses.map(b => ({ ...b })), defaultId };
   try {
-    const data = {
-      businessName: document.getElementById('b-name').value.trim(),
-      businessTaxId: document.getElementById('b-taxid').value.trim(),
-      businessPhone: document.getElementById('b-phone').value.trim(),
-      businessPromptPay: document.getElementById('b-promptpay').value.trim(),
-      businessAddress: document.getElementById('b-address').value.trim(),
-      defaultWht: document.getElementById('s-wht').value
-    };
-    if (saveUserProfile) await saveUserProfile(currentUser.uid, data);
+    if (editingId === 'new') {
+      if (businesses.length >= limit()) { renderLimitNote(true); return; }
+      const id = newId();
+      businesses.push({ id, ...data });
+      if (!defaultId) defaultId = id;
+      editingId = id;
+    } else {
+      businesses = businesses.map(b => b.id === editingId ? { ...b, ...data } : b);
+    }
+    await persist();
     showToast('✅ บันทึกข้อมูลธุรกิจเรียบร้อยแล้ว');
-  } catch(e) {
+    editBusiness(editingId);
+  } catch (e) {
+    console.error(e);
+    businesses = prev.businesses; defaultId = prev.defaultId;
+    if (editingId && !businesses.some(b => b.id === editingId)) editingId = 'new';
+    showToast(e.code === 'permission-denied'
+      ? 'เกินจำนวนธุรกิจที่แพ็กเกจรองรับ'
+      : 'เกิดข้อผิดพลาดในการบันทึก', 'error');
+    renderList();
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">save</span> บันทึกข้อมูลธุรกิจ';
+  }
+};
+
+window.makeDefaultBusiness = async function(id) {
+  const prevDefault = defaultId;
+  defaultId = id;
+  try {
+    await persist();
+    showToast('⭐ ตั้งเป็นธุรกิจค่าเริ่มต้นแล้ว');
+  } catch (e) {
+    console.error(e);
+    defaultId = prevDefault;
+    showToast('เกิดข้อผิดพลาดในการบันทึก', 'error');
+  }
+  renderList();
+};
+
+window.askDeleteBusiness = function(id) {
+  if (businesses.length <= 1) return;
+  deletingId = id;
+  document.getElementById('biz-delete-name').textContent = businesses.find(b => b.id === id)?.name || '';
+  openModal('biz-delete-modal');
+};
+
+window.confirmDeleteBusiness = async function() {
+  if (!deletingId) return;
+  const prev = { businesses: businesses.map(b => ({ ...b })), defaultId };
+  businesses = businesses.filter(b => b.id !== deletingId);
+  if (defaultId === deletingId) defaultId = businesses[0]?.id || null;
+  try {
+    await persist();
+    showToast('🗑️ ลบธุรกิจแล้ว');
+    closeModal('biz-delete-modal');
+    if (editingId === deletingId || editingId === 'new') editingId = defaultId;
+    editBusiness(editingId);
+  } catch (e) {
+    console.error(e);
+    businesses = prev.businesses; defaultId = prev.defaultId;
+    showToast('เกิดข้อผิดพลาด', 'error');
+    renderList();
+  } finally {
+    deletingId = null;
+  }
+};
+
+window.saveSystemSettings = async function() {
+  const btn = document.getElementById('btn-save-sys');
+  btn.disabled = true;
+  try {
+    await saveUserProfile(currentUser.uid, { defaultWht: document.getElementById('s-wht').value });
+    showToast('✅ บันทึกการตั้งค่าระบบแล้ว');
+  } catch (e) {
     console.error(e);
     showToast('เกิดข้อผิดพลาดในการบันทึก', 'error');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">save</span> บันทึกข้อมูลธุรกิจ';
   }
 };
 
