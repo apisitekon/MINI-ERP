@@ -134,10 +134,25 @@ export function requireAuth(onAuthReady) {
 // invisible under the old full-reload architecture (the whole page was already
 // rebuilding) but is jarring now that everything else on the page appears instantly.
 let cachedIsAdmin = null; // null = unknown yet, true/false = known for this tab session
+// Exposed so other callers (e.g. admin.html's own page-gate) can reuse this tab's already-
+// resolved admin status instead of issuing their own redundant isAdmin() Firestore read.
+export function getCachedIsAdmin() {
+  return cachedIsAdmin;
+}
 async function renderAdminNavLink(uid, isAdminFn) {
   const el = document.getElementById('admin-nav-link');
-  if (!el) return;
-  if (cachedIsAdmin === true) el.style.display = 'flex'; // apply immediately, no flicker
+  if (cachedIsAdmin !== null) {
+    // Already known for this tab session — admin status can't change mid-session, so skip
+    // re-querying admins/{uid} on every single page navigation.
+    if (el) el.style.display = cachedIsAdmin ? 'flex' : 'none';
+    return;
+  }
+  if (!el) {
+    // No nav link on this page (e.g. document-print.html) — still resolve and cache the
+    // admin status so a same-tab page that DOES need it (admin.html's gate) doesn't refetch.
+    try { cachedIsAdmin = await isAdminFn(uid); } catch (e) { console.error('renderAdminNavLink failed:', e); }
+    return;
+  }
   try {
     const admin = await isAdminFn(uid);
     cachedIsAdmin = admin;

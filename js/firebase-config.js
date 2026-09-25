@@ -8,8 +8,8 @@ import {
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
-  collection, query, where, getDocs, Timestamp as FirestoreTimestamp, serverTimestamp,
-  connectFirestoreEmulator, runTransaction
+  collection, query, where, getDocs, getCountFromServer, Timestamp as FirestoreTimestamp,
+  serverTimestamp, connectFirestoreEmulator, runTransaction
 } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -116,7 +116,10 @@ export function onAuthChange(callback) {
   return onAuthStateChanged(auth, async (user) => {
     if (user) {
       await bootstrapAdmin(user);
-      await syncUserBasicInfo(user);
+      // Not awaited: this is a background profile-sync write, not something the page needs
+      // to wait on. Awaiting it here would serialize it in front of every page's own data
+      // fetch (every page's requireAuth() waits on this callback before loading anything).
+      syncUserBasicInfo(user);
     }
     callback(mapUser(user));
   });
@@ -136,13 +139,42 @@ export async function isAdmin(uid) {
 // Firestore Helpers
 // ====================================================
 
+// ---- Short-lived read cache ----
+// This is a router-driven SPA with no other cross-page state (js/router.js re-executes each
+// page's own inline script from a fresh closure on every navigation, so a page's own `let
+// allDocs = []`-style locals can never survive a nav) — without this, bouncing between pages
+// within the same session refetches every collection from zero every time, even seconds
+// apart. TTL is short so a stale read is never visible for long even if a write path below
+// were to miss an invalidation; every mutating function clears the whole cache on success so
+// the current tab always sees its own edits immediately (this module persists across
+// router.js navigations, so the cache does too).
+const READ_CACHE_TTL_MS = 30000;
+const _readCache = new Map();
+function cacheGet(key) {
+  const hit = _readCache.get(key);
+  if (!hit || Date.now() - hit.at > READ_CACHE_TTL_MS) return undefined;
+  return hit.data;
+}
+function cacheSet(key, data) {
+  _readCache.set(key, { data, at: Date.now() });
+}
+function cacheClear() {
+  _readCache.clear();
+}
+
 // --- Users ---
 export async function getUserProfile(uid) {
+  const key = `profile:${uid}`;
+  const cached = cacheGet(key);
+  if (cached !== undefined) return cached;
   const snap = await getDoc(doc(db, 'users', uid));
-  return snap.exists() ? snap.data() : null;
+  const data = snap.exists() ? snap.data() : null;
+  cacheSet(key, data);
+  return data;
 }
 export async function saveUserProfile(uid, data) {
   await setDoc(doc(db, 'users', uid), data, { merge: true });
+  cacheClear();
 }
 
 // --- Businesses (several issuer profiles per account) ---
@@ -205,12 +237,18 @@ export async function saveBusinesses(uid, businesses, defaultBusinessId) {
     businessPromptPay: def?.promptPay || '',
     businessAddress: def?.address || '',
   }, { merge: true });
+  cacheClear();
 }
 
 // --- Customers ---
 export async function getCustomers(uid) {
+  const key = `customers:${uid}`;
+  const cached = cacheGet(key);
+  if (cached !== undefined) return cached;
   const snap = await getDocs(query(collection(db, 'customers'), where('uid', '==', uid)));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const res = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  cacheSet(key, res);
+  return res;
 }
 export async function addCustomer(uid, data) {
   const customerRef = doc(collection(db, 'customers'));
@@ -230,10 +268,12 @@ export async function addCustomer(uid, data) {
       { merge: true });
   });
 
+  cacheClear();
   return { id: customerRef.id };
 }
 export async function updateCustomer(id, data) {
   await updateDoc(doc(db, 'customers', id), data);
+  cacheClear();
 }
 export async function deleteCustomer(id) {
   const customerRef = doc(db, 'customers', id);
@@ -247,12 +287,18 @@ export async function deleteCustomer(id) {
     tx.delete(customerRef);
     tx.set(userRef, { customerCount: Math.max(0, count - 1) }, { merge: true });
   });
+  cacheClear();
 }
 
 // --- Products / Services ---
 export async function getProducts(uid) {
+  const key = `products:${uid}`;
+  const cached = cacheGet(key);
+  if (cached !== undefined) return cached;
   const snap = await getDocs(query(collection(db, 'products'), where('uid', '==', uid)));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const res = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  cacheSet(key, res);
+  return res;
 }
 export async function addProduct(uid, data) {
   const productRef = doc(collection(db, 'products'));
@@ -272,10 +318,12 @@ export async function addProduct(uid, data) {
       { merge: true });
   });
 
+  cacheClear();
   return { id: productRef.id };
 }
 export async function updateProduct(id, data) {
   await updateDoc(doc(db, 'products', id), data);
+  cacheClear();
 }
 export async function deleteProduct(id) {
   const productRef = doc(db, 'products', id);
@@ -289,11 +337,14 @@ export async function deleteProduct(id) {
     tx.delete(productRef);
     tx.set(userRef, { productCount: Math.max(0, count - 1) }, { merge: true });
   });
+  cacheClear();
 }
 
 // --- Plan / Admin ---
-export async function getPlanUsage(uid) {
-  const profile = await getUserProfile(uid);
+// Pure mapping, split out so a caller that already has the profile (e.g. insights.html,
+// which needs the full profile anyway) can derive plan usage without a second Firestore
+// read of the same users/{uid} document that getPlanUsage would otherwise trigger.
+export function planUsageFromProfile(profile) {
   return {
     plan: profile?.plan || DEFAULT_PLAN,
     customerLimit: profile?.customerLimit ?? PLANS[DEFAULT_PLAN].customerLimit,
@@ -303,6 +354,11 @@ export async function getPlanUsage(uid) {
     businessLimit: businessLimitFor(profile),
     businessCount: getBusinesses(profile).length,
   };
+}
+
+export async function getPlanUsage(uid) {
+  const profile = await getUserProfile(uid);
+  return planUsageFromProfile(profile);
 }
 
 export async function findUserByEmail(email) {
@@ -316,16 +372,33 @@ export async function updateUserPlan(uid, { plan, customerLimit, productLimit, b
   const data = { plan, customerLimit, productLimit };
   if (typeof businessLimit === 'number') data.businessLimit = businessLimit;
   await setDoc(doc(db, 'users', uid), data, { merge: true });
+  cacheClear();
 }
 
 // --- Documents ---
 export async function getDocuments(uid, filters = {}) {
+  const key = `documents:${uid}:${filters.status || ''}`;
+  const cached = cacheGet(key);
+  if (cached !== undefined) return cached;
   const clauses = [where('uid', '==', uid)];
   if (filters.status) clauses.push(where('status', '==', filters.status));
   const snap = await getDocs(query(collection(db, 'documents'), ...clauses));
   const res = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   res.sort((a, b) => b.date.toDate() - a.date.toDate());
+  cacheSet(key, res);
   return res;
+}
+
+// Used for document numbering (getNextDocNumber in document-editor.html), which used to
+// fetch every document the user has ever created just to count how many share `type` — an
+// unbounded fetch that grows with account age. A server-side count query answers the same
+// question without downloading any document bodies, and two equality filters need no
+// composite index.
+export async function getDocumentCountByType(uid, type) {
+  const snap = await getCountFromServer(
+    query(collection(db, 'documents'), where('uid', '==', uid), where('type', '==', type))
+  );
+  return snap.data().count;
 }
 
 export async function getDocument(id) {
@@ -344,15 +417,18 @@ export async function getLinkedDocuments(uid, field, id) {
 
 export async function saveDocument(uid, data) {
   const ref = await addDoc(collection(db, 'documents'), { ...data, uid });
+  cacheClear();
   return { id: ref.id };
 }
 
 export async function updateDocument(id, data) {
   await updateDoc(doc(db, 'documents', id), data);
+  cacheClear();
 }
 
 export async function deleteDocument(id) {
   await deleteDoc(doc(db, 'documents', id));
+  cacheClear();
 }
 
 // --- Dashboard Aggregations ---

@@ -143,7 +143,7 @@ import './js/router.js';
 import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
 import { subscribe } from './js/auth-state.js';
 import { requireAuth, signOutUser, renderNav, navigate, formatTHB, showToast } from './js/app.js';
-import { getDocuments, getPlanUsage, saveUserProfile, getUserProfile } from './js/firebase-config.js';
+import { getDocuments, planUsageFromProfile, saveUserProfile, getUserProfile } from './js/firebase-config.js';
 
 window.navigate = navigate;
 
@@ -168,14 +168,16 @@ registerCleanup(requireAuth(async (user) => {
   document.getElementById('sidebar-user-name').textContent = user.displayName || '';
   currentUser = user;
   const gen = currentGeneration();
-  const [docs, planUsage, profile] = await Promise.all([
+  const [docs, profile] = await Promise.all([
     getDocuments(user.uid),
-    getPlanUsage(user.uid),
     getUserProfile(user.uid),
   ]);
   if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
 
   allDocs = docs;
+  // Derived locally from the profile fetch above instead of a separate getPlanUsage(uid)
+  // call, which would otherwise re-fetch the same users/{uid} document a second time.
+  const planUsage = planUsageFromProfile(profile);
   isPro = planUsage.plan === 'pro';
 
   if (isPro) {

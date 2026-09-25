@@ -444,7 +444,7 @@ import './js/router.js';
 import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
 import { subscribe } from './js/auth-state.js';
 import { requireAuth, signOutUser, showToast, formatTHB, statusBadge, renderNav, navigate, calcDocument, openModal, closeModal, JOB_SOURCES } from './js/app.js';
-import { getCustomers, getProducts, getDocument, saveDocument, updateDocument, deleteDocument, generateDocNumber, getDocuments, getLinkedDocuments, Timestamp, getUserProfile, getBusinesses, getUsableBusinesses } from './js/firebase-config.js';
+import { getCustomers, getProducts, getDocument, saveDocument, updateDocument, deleteDocument, generateDocNumber, getDocuments, getDocumentCountByType, getLinkedDocuments, Timestamp, getUserProfile, getBusinesses, getUsableBusinesses } from './js/firebase-config.js';
 
 window.navigate = navigate;
 window.closeModal = closeModal;
@@ -1033,10 +1033,8 @@ function buildDocData(status) {
 }
 
 async function getNextDocNumber(uid, type) {
-  const existing = await getDocuments(uid);
-  const typePrefix = { INVOICE:'INV', QUOTATION:'QUO', RECEIPT:'REC' }[type] || 'DOC';
-  const sameType = existing.filter(d => d.type === type);
-  return generateDocNumber(type, sameType.length + 1);
+  const count = await getDocumentCountByType(uid, type);
+  return generateDocNumber(type, count + 1);
 }
 
 // ---- Save / Finalize ----

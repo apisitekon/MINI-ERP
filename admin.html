@@ -146,7 +146,7 @@
 import './js/router.js';
 import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
 import { subscribe } from './js/auth-state.js';
-import { requireAuth, signOutUser, showToast, renderNav, navigate } from './js/app.js';
+import { requireAuth, signOutUser, showToast, renderNav, navigate, getCachedIsAdmin } from './js/app.js';
 import { isAdmin, findUserByEmail, updateUserPlan, PLANS, getBusinesses, businessLimitFor } from './js/firebase-config.js';
 
 window.navigate = navigate;
@@ -168,7 +168,10 @@ if (document.readyState === 'loading') {
 registerCleanup(requireAuth(async (user) => {
   document.getElementById('sidebar-user-name').textContent = user.displayName || '';
   const gen = currentGeneration();
-  const admin = await isAdmin(user.uid);
+  // requireAuth() already kicked off the same admin check via renderAdminNavLink — reuse
+  // its cached result instead of a second redundant isAdmin() read when it's already known.
+  const cached = getCachedIsAdmin();
+  const admin = cached !== null ? cached : await isAdmin(user.uid);
   if (!isCurrent(gen)) return; // navigated away before this resolved — don't force-redirect the new page
   if (!admin) {
     window.location.href = 'dashboard.html';
