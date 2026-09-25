@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>แก้ไขเอกสาร — Thai Freelance ERP Lite</title>
-  <meta name="description" content="สร้างและแก้ไขใบแจ้งหนี้ ใบเสนอราคา — คำนวณ WHT 3% อัตโนมัติ" />
+  <meta name="description" content="สร้างและแก้ไขใบแจ้งหนี้ ใบเสนอราคา — คำนวณภาษีหัก ณ ที่จ่ายอัตโนมัติ เลือกอัตราได้ต่อเอกสาร" />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
   <link rel="stylesheet" href="styles/design-system.css" />
   <style>
@@ -233,6 +233,10 @@
                   <option value="RECEIPT">ใบเสร็จรับเงิน (Receipt)</option>
                 </select>
               </div>
+              <div class="form-group" id="doc-business-wrap" style="grid-column:1/-1;display:none;">
+                <label class="form-label" for="doc-business">ออกเอกสารในนาม</label>
+                <select class="form-select" id="doc-business"></select>
+              </div>
               <div class="form-group">
                 <label class="form-label" for="doc-date">วันที่เอกสาร</label>
                 <input class="form-input" type="date" id="doc-date" />
@@ -259,6 +263,10 @@
               <select class="form-select" id="customer-select" onchange="onCustomerSelect()">
                 <option value="">— เลือกลูกค้า —</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="doc-job-source">ที่มาของงาน</label>
+              <select class="form-select" id="doc-job-source"></select>
             </div>
             <div id="customer-details" style="display:none;margin-top:14px;padding:14px;background:var(--color-surface-container-low);border-radius:var(--radius-lg);font-size:13px;line-height:1.7;color:var(--color-secondary);">
             </div>
@@ -326,16 +334,23 @@
               สรุปยอด
             </div>
 
-            <!-- WHT Toggle -->
-            <div class="wht-toggle-wrap">
-              <div>
-                <div class="wht-toggle-label">
-                  <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">receipt_long</span>
-                  หัก ณ ที่จ่าย (WHT 3%)
-                </div>
-                <div style="font-size:11px;color:var(--color-outline);margin-top:2px;">สำหรับบริการ/ฟรีแลนซ์</div>
+            <!-- WHT Rate -->
+            <div class="wht-toggle-wrap" style="flex-direction:column;align-items:stretch;">
+              <div class="wht-toggle-label" style="margin-bottom:10px;">
+                <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">receipt_long</span>
+                หัก ณ ที่จ่าย
               </div>
-              <div class="toggle on" id="wht-toggle" onclick="toggleWHT()" role="checkbox" aria-checked="true" aria-label="หัก ณ ที่จ่าย 3%"></div>
+              <select class="form-select" id="wht-rate-select" onchange="onWhtRateChange()">
+                <option value="0.03">3% (บริการ/รับจ้างทำของ)</option>
+                <option value="0.02">2% (โฆษณา)</option>
+                <option value="0.01">1% (ขนส่ง)</option>
+                <option value="0.05">5% (เช่า)</option>
+                <option value="0">ไม่หัก</option>
+              </select>
+              <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--color-secondary);cursor:pointer;">
+                <input type="checkbox" id="wht-via-ewht" onchange="onEWhtToggle()" />
+                ลูกค้าจ่ายผ่าน e-WHT (หัก 1%)
+              </label>
             </div>
 
             <div class="summary-row">
@@ -345,7 +360,7 @@
             <div class="summary-row summary-row--wht" id="wht-row">
               <span class="label" style="display:flex;align-items:center;gap:4px;">
                 <span class="material-symbols-outlined" style="font-size:14px;">receipt_long</span>
-                หัก ณ ที่จ่าย (3%)
+                <span id="wht-row-label">หัก ณ ที่จ่าย</span>
               </span>
               <span class="value" id="sum-wht">- THB 0.00</span>
             </div>
@@ -428,8 +443,8 @@
 import './js/router.js';
 import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
 import { subscribe } from './js/auth-state.js';
-import { requireAuth, signOutUser, showToast, formatTHB, statusBadge, renderNav, navigate, calcDocument, openModal, closeModal } from './js/app.js';
-import { getCustomers, getProducts, getDocument, saveDocument, updateDocument, deleteDocument, generateDocNumber, getDocuments, getLinkedDocuments, Timestamp } from './js/firebase-config.js';
+import { requireAuth, signOutUser, showToast, formatTHB, statusBadge, renderNav, navigate, calcDocument, openModal, closeModal, JOB_SOURCES } from './js/app.js';
+import { getCustomers, getProducts, getDocument, saveDocument, updateDocument, deleteDocument, generateDocNumber, getDocuments, getLinkedDocuments, Timestamp, getUserProfile, getBusinesses, getUsableBusinesses } from './js/firebase-config.js';
 
 window.navigate = navigate;
 window.closeModal = closeModal;
@@ -441,7 +456,9 @@ let customers = [];
 let products = [];
 let allProducts = [];
 let lineItems = [{ name: '', qty: 1, price: 0 }];
-let whtEnabled = true;
+let whtRate = 0.03;
+let whtViaEWht = false;
+let whtRateBeforeEWht = 0.03; // remembered so unchecking e-WHT restores the prior rate
 window.lineItems = lineItems;
 let sourceQuotationId = null;
 let sourceQuotationNumber = null;
@@ -460,6 +477,8 @@ async function init() {
   const due = new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
   document.getElementById('doc-date').value = today;
   document.getElementById('doc-due').value = due;
+  document.getElementById('doc-job-source').innerHTML = '<option value="">— ไม่ระบุ —</option>' +
+    JOB_SOURCES.map(s => `<option value="${s}">${s}</option>`).join('');
 
   renderNav('documents');
   document.getElementById('btn-signout')?.addEventListener('click', async () => {
@@ -488,8 +507,10 @@ if (document.readyState === 'loading') {
 registerCleanup(requireAuth(async (user) => {
   const gen = currentGeneration();
   currentUser = user;
-  [customers, allProducts] = await Promise.all([getCustomers(user.uid), getProducts(user.uid)]);
+  let profile;
+  [customers, allProducts, profile] = await Promise.all([getCustomers(user.uid), getProducts(user.uid), getUserProfile(user.uid)]);
   if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
+  populateBusinessSelect(profile);
   products = [...allProducts];
 
   // Populate customer select
@@ -520,6 +541,13 @@ registerCleanup(requireAuth(async (user) => {
       customerSelect.value = presetCustomerId;
       onCustomerSelect();
     }
+
+    // New document: default the WHT rate from the account's saved default (settings.html's
+    // "อัตราหัก ณ ที่จ่ายเริ่มต้น"). A source-invoice copy below (for receipts) overrides this
+    // with the invoice's own historical rate, which takes precedence.
+    whtRate = profile?.defaultWht !== undefined ? parseFloat(profile.defaultWht) : 0.03;
+    if (Number.isNaN(whtRate)) whtRate = 0.03;
+    document.getElementById('wht-rate-select').value = String(whtRate);
 
     if (presetSourceInvoiceId) {
       // copies the source invoice's line items and calls renderLineItems()/updateSummary()
@@ -573,12 +601,18 @@ async function loadExistingDoc() {
   document.getElementById('doc-notes').value = existingDoc.notes || '';
   document.getElementById('customer-select').value = existingDoc.customerId || '';
   onCustomerSelect();
+  // onCustomerSelect() just defaulted job-source from the customer's generic saved source —
+  // override with the document's own saved value, same reasoning as whtRate/lineItems below.
+  document.getElementById('doc-job-source').value = existingDoc.jobSource || '';
+  setBusinessSelection(existingDoc.businessId);
 
   lineItems = existingDoc.items || [];
-  whtEnabled = existingDoc.whtRate > 0;
-  const toggle = document.getElementById('wht-toggle');
-  toggle.classList.toggle('on', whtEnabled);
-  toggle.setAttribute('aria-checked', whtEnabled);
+  whtRate = existingDoc.whtRate ?? 0.03;
+  whtViaEWht = existingDoc.whtViaEWht || false;
+  whtRateBeforeEWht = whtRate;
+  document.getElementById('wht-rate-select').value = String(whtRate);
+  document.getElementById('wht-rate-select').disabled = whtViaEWht;
+  document.getElementById('wht-via-ewht').checked = whtViaEWht;
 
   // Restore linking fields so they round-trip through any later saveDraft()/finalizeDoc()
   sourceQuotationId = existingDoc.sourceQuotationId || null;
@@ -709,12 +743,16 @@ async function loadSourceInvoiceAndCopyItems(invId) {
 
   sourceInvoiceId = invId;
   sourceInvoiceNumber = src.number || null;
+  setBusinessSelection(src.businessId); // a receipt is issued by the same business as its invoice
 
   lineItems = (src.items || []).map(i => ({ ...i })); // clone — never share refs with the fetched doc
-  whtEnabled = src.whtRate > 0;
-  const toggle = document.getElementById('wht-toggle');
-  toggle.classList.toggle('on', whtEnabled);
-  toggle.setAttribute('aria-checked', whtEnabled);
+  whtRate = src.whtRate ?? 0.03;
+  whtViaEWht = src.whtViaEWht || false;
+  whtRateBeforeEWht = whtRate;
+  document.getElementById('wht-rate-select').value = String(whtRate);
+  document.getElementById('wht-rate-select').disabled = whtViaEWht;
+  document.getElementById('wht-via-ewht').checked = whtViaEWht;
+  document.getElementById('doc-job-source').value = src.jobSource || '';
   if (src.notes) document.getElementById('doc-notes').value = src.notes;
 
   renderLineItems();
@@ -732,7 +770,35 @@ async function loadSourceQuotationBanner(quoId) {
 
   sourceQuotationId = quoId;
   sourceQuotationNumber = src.number || null;
+  if (!docId) setBusinessSelection(src.businessId); // new invoice inherits the quotation's issuer
+  document.getElementById('doc-job-source').value = src.jobSource || '';
   renderSourceBanner();
+}
+
+// ---- Issuing business (multi-business accounts) ----
+let issuerAllBusinesses = [];
+function populateBusinessSelect(profile) {
+  issuerAllBusinesses = getBusinesses(profile);
+  const usable = getUsableBusinesses(profile); // default first, capped at the plan limit
+  const sel = document.getElementById('doc-business');
+  sel.innerHTML = usable.map(b =>
+    `<option value="${escHtml(b.id)}">${escHtml(b.name || '(ไม่มีชื่อ)')}</option>`).join('');
+  document.getElementById('doc-business-wrap').style.display = usable.length > 1 ? '' : 'none';
+}
+function setBusinessSelection(id) {
+  if (!id) return;
+  const sel = document.getElementById('doc-business');
+  if (![...sel.options].some(o => o.value === id)) {
+    // Issued by a business that is no longer selectable (deleted, or over the plan limit):
+    // keep it as an option so re-saving doesn't silently re-assign the document.
+    const b = issuerAllBusinesses.find(x => x.id === id);
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = `${b?.name || 'ธุรกิจที่ถูกลบ'} (ไม่พร้อมใช้งาน)`;
+    sel.appendChild(opt);
+    document.getElementById('doc-business-wrap').style.display = '';
+  }
+  sel.value = id;
 }
 
 window.createReceiptFromInvoice = function() {
@@ -788,22 +854,38 @@ window.removeLineItem = function(i) {
   updateSummary();
 };
 
-// ---- WHT Toggle ----
-window.toggleWHT = function() {
-  whtEnabled = !whtEnabled;
-  const toggle = document.getElementById('wht-toggle');
-  toggle.classList.toggle('on', whtEnabled);
-  toggle.setAttribute('aria-checked', whtEnabled);
-  document.getElementById('wht-row').style.opacity = whtEnabled ? '1' : '0.35';
+// ---- WHT Rate ----
+window.onWhtRateChange = function() {
+  whtRate = parseFloat(document.getElementById('wht-rate-select').value);
+  updateSummary();
+};
+
+window.onEWhtToggle = function() {
+  const checked = document.getElementById('wht-via-ewht').checked;
+  const sel = document.getElementById('wht-rate-select');
+  whtViaEWht = checked;
+  if (checked) {
+    whtRateBeforeEWht = whtRate;
+    whtRate = 0.01;
+    sel.value = '0.01';
+    sel.disabled = true;
+  } else {
+    whtRate = whtRateBeforeEWht;
+    sel.value = String(whtRate);
+    sel.disabled = false;
+  }
   updateSummary();
 };
 
 // ---- Summary ----
 window.updateSummary = function() {
-  const calc = calcDocument(lineItems, whtEnabled);
+  const calc = calcDocument(lineItems, whtRate > 0, whtRate);
   document.getElementById('sum-subtotal').textContent = `THB ${formatTHB(calc.subtotal)}`;
   document.getElementById('sum-wht').textContent = `- THB ${formatTHB(calc.whtAmount)}`;
   document.getElementById('sum-net').textContent = `THB ${formatTHB(calc.netTotal)}`;
+  document.getElementById('wht-row').style.opacity = whtRate > 0 ? '1' : '0.35';
+  document.getElementById('wht-row-label').textContent =
+    whtRate > 0 ? `หัก ณ ที่จ่าย (${(whtRate * 100).toFixed(0)}%)${whtViaEWht ? ' · e-WHT' : ''}` : 'หัก ณ ที่จ่าย';
   // Re-render row totals
   document.querySelectorAll('#line-items-tbody tr').forEach((tr, i) => {
     const item = lineItems[i];
@@ -818,6 +900,7 @@ window.updateSummary = function() {
 window.onCustomerSelect = function() {
   const id = document.getElementById('customer-select').value;
   const cust = customers.find(c => c.id === id);
+  document.getElementById('doc-job-source').value = cust?.source || '';
   const detailWrap = document.getElementById('customer-details');
   if (cust) {
     detailWrap.style.display = 'block';
@@ -921,7 +1004,7 @@ function validateDocumentInput() {
 function buildDocData(status) {
   const { customerId, items } = validateDocumentInput();
   const cust = customers.find(c => c.id === customerId);
-  const calc = calcDocument(items, whtEnabled);
+  const calc = calcDocument(items, whtRate > 0, whtRate);
   const type = document.getElementById('doc-type').value;
   const dateVal = document.getElementById('doc-date').value;
   const dueVal = document.getElementById('doc-due').value;
@@ -931,14 +1014,17 @@ function buildDocData(status) {
     customerId: customerId || null,
     customerName: cust?.name || null,
     customerTaxId: cust?.taxId || null,
+    businessId: document.getElementById('doc-business').value || null,
     items,
     subtotal: calc.subtotal,
     whtRate: calc.whtRate,
     whtAmount: calc.whtAmount,
+    whtViaEWht: whtViaEWht || false,
     netTotal: calc.netTotal,
     date: dateVal ? Timestamp.fromDate(new Date(dateVal)) : null,
     dueDate: dueVal ? Timestamp.fromDate(new Date(dueVal)) : null,
     notes: document.getElementById('doc-notes').value || null,
+    jobSource: document.getElementById('doc-job-source').value || null,
     sourceQuotationId: sourceQuotationId || null,
     sourceQuotationNumber: sourceQuotationNumber || null,
     sourceInvoiceId: sourceInvoiceId || null,
