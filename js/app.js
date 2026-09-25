@@ -12,6 +12,9 @@ export const state = {
   currentPage: 'dashboard'
 };
 
+// ---- Job Source Channels (customers + documents) ----
+export const JOB_SOURCES = ['Fastwork', 'Facebook', 'LINE', 'Instagram', 'TikTok', 'เว็บไซต์', 'คนแนะนำ', 'ลูกค้าเก่า', 'อื่น ๆ'];
+
 // ---- Router ----
 const routes = {
   'dashboard':         'dashboard.html',
@@ -22,6 +25,7 @@ const routes = {
   'settings':          'settings.html',
   'plan':              'plan.html',
   'admin':             'admin.html',
+  'insights':          'insights.html',
 };
 
 export function navigate(page, params = {}) {
@@ -156,6 +160,7 @@ export function renderNav(activePage) {
     { page: 'documents',   icon: 'description',  label: 'เอกสาร' },
     { page: 'customers',   icon: 'group',        label: 'ลูกค้า' },
     { page: 'products',    icon: 'inventory_2',  label: 'สินค้า/บริการ' },
+    { page: 'insights',    icon: 'insights',     label: 'อินไซต์' },
     { page: 'plan',        icon: 'workspace_premium', label: 'แพ็กเกจ' },
     { page: 'settings',    icon: 'settings',     label: 'ตั้งค่า' },
   ];

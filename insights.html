@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>อินไซต์ — Thai Freelance ERP Lite</title>
+  <meta name="description" content="สรุปผลงานแยกตามช่องทางที่มาของงาน — รายได้, อัตราปิดงาน, มูลค่างานเฉลี่ย, เป้ารายได้รายเดือน" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="styles/design-system.css" />
+  <style>
+    .insight-card {
+      background: var(--color-surface-container-lowest);
+      border: 1px solid var(--color-workspace-border);
+      border-radius: var(--radius-xl);
+      padding: 28px;
+      box-shadow: var(--shadow-card);
+      margin-bottom: 24px;
+    }
+    .insight-card-title {
+      font-size: 16px; font-weight: 600; color: var(--color-on-surface);
+      margin-bottom: 18px; padding-bottom: 12px;
+      border-bottom: 1px solid var(--color-workspace-border);
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    .filter-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .chip {
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      font-size: 12px; font-weight: 600;
+      letter-spacing: 0.04em;
+      border: 1px solid var(--color-workspace-border);
+      background: var(--color-surface-container-lowest);
+      color: var(--color-secondary);
+      transition: all var(--transition-fast);
+      cursor: pointer;
+    }
+    .chip:hover { background: var(--color-surface-container); }
+    .chip.active { background: var(--color-primary); color: var(--color-on-primary); border-color: var(--color-primary); }
+
+    .upgrade-card { text-align: center; padding: 40px 24px; }
+    .upgrade-card p { margin-top: 12px; font-size: 13px; color: var(--color-secondary); max-width: 360px; margin-left: auto; margin-right: auto; line-height: 1.6; }
+    .upgrade-card .btn { margin-top: 18px; }
+
+    .target-row { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
+    .target-row input { max-width: 200px; }
+    .progress-track { height: 10px; border-radius: var(--radius-full); background: var(--color-surface-container); overflow: hidden; margin: 10px 0; }
+    .progress-fill { height: 100%; border-radius: var(--radius-full); background: var(--color-primary); transition: width var(--transition-base); }
+    .target-stats { display: flex; justify-content: space-between; font-size: 13px; color: var(--color-secondary); flex-wrap: wrap; gap: 8px; }
+    .target-stats strong { color: var(--color-on-surface); }
+
+    .pipeline-row { display: flex; justify-content: space-between; align-items: center; padding-top: 16px; margin-top: 16px; border-top: 1px solid var(--color-workspace-border); }
+    .pipeline-row .label { font-size: 13px; color: var(--color-secondary); }
+    .pipeline-row .value { font-size: 20px; font-weight: 700; color: var(--color-primary); }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <span class="material-symbols-outlined" style="font-size:24px;color:var(--color-primary);">receipt_long</span>
+      </div>
+      <div class="sidebar-brand">
+        <div class="brand-name">Thai ERP</div>
+        <div class="brand-sub" id="sidebar-user-name">Freelance Edition</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <a class="nav-item" href="admin.html" id="admin-nav-link" style="display:none;">
+        <span class="material-symbols-outlined">admin_panel_settings</span>
+        <span>Admin</span>
+      </a>
+      <button class="nav-item w-full" id="btn-signout" style="text-align:left;">
+        <span class="material-symbols-outlined">logout</span>ออกจากระบบ
+      </button>
+    </div>
+  </aside>
+
+  <header class="mobile-header">
+    <span class="brand">อินไซต์</span>
+  </header>
+
+  <main class="main-content">
+    <div class="content-inner">
+      <div class="page-header" style="max-width:900px; margin: 0 auto 24px;">
+        <div>
+          <h1 class="page-title">อินไซต์</h1>
+          <p class="page-subtitle">สรุปผลงานแยกตามช่องทางที่มาของงาน</p>
+        </div>
+      </div>
+
+      <div style="max-width:900px; margin:0 auto;">
+
+        <div class="filter-chips">
+          <button class="chip active" data-range="year" onclick="setRange(this, 'year')">ปีนี้</button>
+          <button class="chip" data-range="90d" onclick="setRange(this, '90d')">90 วัน</button>
+          <button class="chip" data-range="all" onclick="setRange(this, 'all')">ทั้งหมด</button>
+        </div>
+
+        <!-- Channel breakdown -->
+        <div class="insight-card">
+          <div class="insight-card-title">
+            <span class="material-symbols-outlined text-primary">bar_chart</span>
+            รายได้แยกตามช่องทาง
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="data-table" id="channel-table">
+              <thead><tr><th>ช่องทาง</th><th class="text-right">รายได้ที่ชำระแล้ว (THB)</th></tr></thead>
+              <tbody id="channel-tbody">
+                <tr><td colspan="2" style="padding:32px;text-align:center;"><div class="spinner" style="margin:0 auto;"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Pro-only: full breakdown + target/pipeline -->
+        <div id="pro-section" style="display:none;"></div>
+
+        <!-- Free-only: upgrade placeholder -->
+        <div id="free-upgrade-wrap" style="display:none;">
+          <div class="insight-card upgrade-card">
+            <span class="material-symbols-outlined" style="font-size:40px;color:var(--color-outline);">lock</span>
+            <p>ปลดล็อกอัตราปิดงาน มูลค่างานเฉลี่ย ระยะเวลาจนได้รับเงิน และเป้ารายได้รายเดือน + pipeline ด้วยแพ็กเกจ Pro</p>
+            <a class="btn btn-primary" href="plan.html">
+              <span class="material-symbols-outlined" style="font-size:18px;">workspace_premium</span>
+              อัปเกรดเป็น Pro
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<nav class="bottom-nav" id="bottom-nav"></nav>
+<div id="toast-container" class="toast-container"></div>
+
+<script type="module">
+import './js/router.js';
+import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
+import { subscribe } from './js/auth-state.js';
+import { requireAuth, signOutUser, renderNav, navigate, formatTHB, showToast } from './js/app.js';
+import { getDocuments, getPlanUsage, saveUserProfile, getUserProfile } from './js/firebase-config.js';
+
+window.navigate = navigate;
+
+let currentUser = null;
+let allDocs = [];
+let isPro = false;
+let currentRange = 'year';
+
+function init() {
+  renderNav('insights');
+  document.getElementById('btn-signout')?.addEventListener('click', async () => {
+    await signOutUser(); window.location.href = 'dashboard.html';
+  });
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+registerCleanup(requireAuth(async (user) => {
+  document.getElementById('sidebar-user-name').textContent = user.displayName || '';
+  currentUser = user;
+  const gen = currentGeneration();
+  const [docs, planUsage, profile] = await Promise.all([
+    getDocuments(user.uid),
+    getPlanUsage(user.uid),
+    getUserProfile(user.uid),
+  ]);
+  if (!isCurrent(gen)) return; // navigated away before this resolved — don't stomp the new page
+
+  allDocs = docs;
+  isPro = planUsage.plan === 'pro';
+
+  if (isPro) {
+    document.getElementById('pro-section').style.display = 'block';
+    renderProSection(profile?.monthlyTarget || 0);
+  } else {
+    document.getElementById('free-upgrade-wrap').style.display = 'block';
+  }
+
+  renderChannelTable();
+}));
+
+registerCleanup(subscribe(user => { if (!user) window.location.href = 'dashboard.html'; }));
+
+// ---- Date-range filter ----
+const RANGES = {
+  year:  d => d.getFullYear() === new Date().getFullYear(),
+  '90d': d => d >= new Date(Date.now() - 90 * 86400000),
+  all:   () => true,
+};
+function applyRange(docs, key) {
+  const pred = RANGES[key] || RANGES.all;
+  return docs.filter(d => d.date && pred(d.date.toDate()));
+}
+
+window.setRange = function(el, key) {
+  currentRange = key;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderChannelTable();
+};
+
+// ---- Channel aggregation ----
+// "Won" excludes cancelled invoices (an abandoned/cancelled invoice against a quotation
+// isn't a won deal) but does NOT require paid — a pending invoice is still a real
+// commercial win, matching how this app already treats pending amounts elsewhere.
+function aggregateByChannel(docs) {
+  const wonQuoIds = new Set(
+    docs.filter(d => d.type === 'INVOICE' && d.status !== 'cancelled' && d.sourceQuotationId)
+        .map(d => d.sourceQuotationId)
+  );
+  const byChannel = {};
+  const bucket = ch => (byChannel[ch] ??= { revenue: 0, quoCount: 0, wonCount: 0, dealTotal: 0, cycleDays: [] });
+
+  for (const d of docs) {
+    const ch = d.jobSource || 'ไม่ระบุ';
+    if (d.status === 'paid') bucket(ch).revenue += d.subtotal || 0;
+    if (d.type === 'QUOTATION') {
+      const b = bucket(ch);
+      b.quoCount++;
+      b.dealTotal += d.netTotal || 0;
+      if (wonQuoIds.has(d.id)) b.wonCount++;
+    }
+  }
+
+  // Cycle time grouped by the RECEIPT's own channel (already equal to its source
+  // invoice's channel, via inheritance) and filtered on the receipt's date — "did the
+  // money move in this window."
+  const invoiceById = new Map(docs.filter(d => d.type === 'INVOICE').map(d => [d.id, d]));
+  for (const r of docs.filter(d => d.type === 'RECEIPT' && d.sourceInvoiceId)) {
+    const inv = invoiceById.get(r.sourceInvoiceId);
+    if (!inv?.date || !r.date) continue;
+    bucket(r.jobSource || 'ไม่ระบุ').cycleDays.push((r.date.toDate() - inv.date.toDate()) / 86400000);
+  }
+
+  return Object.entries(byChannel).map(([channel, b]) => ({
+    channel,
+    revenue: b.revenue,
+    quoCount: b.quoCount,
+    winRate: b.quoCount ? b.wonCount / b.quoCount : null,
+    avgDeal: b.quoCount ? b.dealTotal / b.quoCount : null,
+    avgDays: b.cycleDays.length ? b.cycleDays.reduce((s, x) => s + x, 0) / b.cycleDays.length : null,
+  })).sort((a, b) => b.revenue - a.revenue);
+}
+
+function renderChannelTable() {
+  const filtered = applyRange(allDocs, currentRange);
+  const rows = aggregateByChannel(filtered);
+  const tbody = document.getElementById('channel-tbody');
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${isPro ? 6 : 2}" style="padding:32px;text-align:center;color:var(--color-secondary);">ยังไม่มีข้อมูลในช่วงเวลานี้</td></tr>`;
+    updateProTableHead();
+    return;
+  }
+
+  updateProTableHead();
+  tbody.innerHTML = rows.map(r => isPro ? `
+    <tr>
+      <td>${r.channel}</td>
+      <td class="text-right">${formatTHB(r.revenue)}</td>
+      <td class="text-right">${r.quoCount}</td>
+      <td class="text-right">${r.winRate === null ? '—' : Math.round(r.winRate * 100) + '%'}</td>
+      <td class="text-right">${r.avgDeal === null ? '—' : formatTHB(r.avgDeal)}</td>
+      <td class="text-right">${r.avgDays === null ? '—' : r.avgDays.toFixed(1) + ' วัน'}</td>
+    </tr>
+  ` : `
+    <tr>
+      <td>${r.channel}</td>
+      <td class="text-right">${formatTHB(r.revenue)}</td>
+    </tr>
+  `).join('');
+}
+
+function updateProTableHead() {
+  const thead = document.querySelector('#channel-table thead tr');
+  thead.innerHTML = isPro
+    ? '<th>ช่องทาง</th><th class="text-right">รายได้ที่ชำระแล้ว (THB)</th><th class="text-right">ใบเสนอราคา</th><th class="text-right">อัตราปิดงาน</th><th class="text-right">มูลค่างานเฉลี่ย</th><th class="text-right">วันเฉลี่ยจนได้เงิน</th>'
+    : '<th>ช่องทาง</th><th class="text-right">รายได้ที่ชำระแล้ว (THB)</th>';
+}
+
+// ---- Monthly target + pipeline (Pro only, always real calendar month / all-time) ----
+function thisMonthPaid(docs) {
+  const now = new Date();
+  return docs.filter(d => d.status === 'paid' && d.date &&
+    d.date.toDate().getFullYear() === now.getFullYear() &&
+    d.date.toDate().getMonth() === now.getMonth()
+  ).reduce((s, d) => s + (d.subtotal || 0), 0);
+}
+function pipelineValue(docs) {
+  const wonQuoIds = new Set(docs.filter(d => d.type === 'INVOICE' && d.status !== 'cancelled' && d.sourceQuotationId).map(d => d.sourceQuotationId));
+  return docs.filter(d => d.type === 'QUOTATION' && d.status === 'pending' && !wonQuoIds.has(d.id))
+             .reduce((s, d) => s + (d.netTotal || 0), 0);
+}
+
+function renderProSection(monthlyTarget) {
+  const paid = thisMonthPaid(allDocs);
+  const pipeline = pipelineValue(allDocs);
+  const pct = monthlyTarget > 0 ? Math.min(100, Math.round((paid / monthlyTarget) * 100)) : 0;
+
+  document.getElementById('pro-section').innerHTML = `
+    <div class="insight-card">
+      <div class="insight-card-title">
+        <span class="material-symbols-outlined text-primary">flag</span>
+        เป้ารายได้รายเดือน
+      </div>
+      <div class="target-row">
+        <input class="form-input" type="number" id="target-input" placeholder="เช่น 50000" value="${monthlyTarget || ''}" />
+        <button class="btn btn-secondary" onclick="saveTarget()">
+          <span class="material-symbols-outlined" style="font-size:16px;">save</span> บันทึกเป้า
+        </button>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+      <div class="target-stats">
+        <span>เดือนนี้: <strong>THB ${formatTHB(paid)}</strong></span>
+        <span>เป้า: <strong>THB ${formatTHB(monthlyTarget)}</strong> (${pct}%)</span>
+      </div>
+      <div class="pipeline-row">
+        <span class="label">Pipeline — ใบเสนอราคาที่ยังรอ (ไม่มีใบแจ้งหนี้)</span>
+        <span class="value">THB ${formatTHB(pipeline)}</span>
+      </div>
+    </div>
+  `;
+}
+
+window.saveTarget = async function() {
+  const val = parseFloat(document.getElementById('target-input').value) || 0;
+  await saveUserProfile(currentUser.uid, { monthlyTarget: val });
+  showToast('✅ บันทึกเป้ารายได้แล้ว');
+  renderProSection(val);
+};
+</script>
+</body>
+</html>

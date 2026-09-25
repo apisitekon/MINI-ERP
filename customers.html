@@ -161,6 +161,10 @@
           <label class="form-label" for="f-phone">เบอร์โทร</label>
           <input class="form-input" type="tel" id="f-phone" placeholder="02-xxx-xxxx" />
         </div>
+        <div class="form-group">
+          <label class="form-label" for="f-source">ที่มาของงาน</label>
+          <select class="form-select" id="f-source"></select>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -197,7 +201,7 @@
 import './js/router.js';
 import { registerCleanup, currentGeneration, isCurrent } from './js/router.js';
 import { subscribe } from './js/auth-state.js';
-import { requireAuth, signOutUser, showToast, renderNav, navigate, openModal, closeModal, formatTaxId } from './js/app.js';
+import { requireAuth, signOutUser, showToast, renderNav, navigate, openModal, closeModal, formatTaxId, JOB_SOURCES } from './js/app.js';
 import { getCustomers, addCustomer, updateCustomer, deleteCustomer, getPlanUsage } from './js/firebase-config.js';
 
 window.closeModal = closeModal;
@@ -216,6 +220,8 @@ function init() {
   document.getElementById('btn-signout')?.addEventListener('click', async () => {
     await signOutUser(); window.location.href = 'dashboard.html';
   });
+  document.getElementById('f-source').innerHTML = '<option value="">— ไม่ระบุ —</option>' +
+    JOB_SOURCES.map(s => `<option value="${s}">${s}</option>`).join('');
   document.getElementById('search-input').addEventListener('input', renderGrid);
   document.querySelectorAll('.modal-backdrop').forEach(m => {
     m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
@@ -309,7 +315,7 @@ window.openAddModal = function() {
   }
   editingId = null;
   document.getElementById('modal-title').textContent = 'เพิ่มลูกค้าใหม่';
-  ['f-name','f-taxid','f-address','f-email','f-phone'].forEach(id => document.getElementById(id).value = '');
+  ['f-name','f-taxid','f-address','f-email','f-phone','f-source'].forEach(id => document.getElementById(id).value = '');
   openModal('customer-modal');
   document.getElementById('f-name').focus();
 };
@@ -324,6 +330,7 @@ window.openEditModal = function(id) {
   document.getElementById('f-address').value = c.address || '';
   document.getElementById('f-email').value   = c.email   || '';
   document.getElementById('f-phone').value   = c.phone   || '';
+  document.getElementById('f-source').value  = c.source  || '';
   openModal('customer-modal');
 };
 
@@ -336,6 +343,7 @@ window.saveCustomer = async function() {
     address: document.getElementById('f-address').value.trim(),
     email:   document.getElementById('f-email').value.trim(),
     phone:   document.getElementById('f-phone').value.trim(),
+    source:  document.getElementById('f-source').value || null,
   };
   const btn = document.getElementById('btn-save-customer');
   btn.disabled = true;

@@ -14,7 +14,7 @@
 
 const ROUTABLE_FILES = new Set([
   'dashboard.html', 'documents.html', 'document-editor.html', 'customers.html',
-  'products.html', 'settings.html', 'plan.html', 'admin.html',
+  'products.html', 'settings.html', 'plan.html', 'admin.html', 'insights.html',
 ]);
 
 const cleanups = [];
