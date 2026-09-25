@@ -7,9 +7,9 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
-  collection, query, where, getDocs, getCountFromServer, Timestamp as FirestoreTimestamp,
-  serverTimestamp, connectFirestoreEmulator, runTransaction
+  doc, getDoc, getDocFromCache, setDoc, addDoc, updateDoc, deleteDoc,
+  collection, query, where, getDocs, getDocsFromCache, getCountFromServer,
+  Timestamp as FirestoreTimestamp, serverTimestamp, connectFirestoreEmulator, runTransaction
 } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -162,12 +162,45 @@ function cacheClear() {
   _readCache.clear();
 }
 
+// Dedupes the background revalidation fetch below: if two callers hit an instant-paint cache
+// read for the same key before the first revalidation lands, they share one network fetch
+// instead of each firing their own.
+const _inFlightRevalidate = new Map();
+function revalidate(key, fetchFn) {
+  if (_inFlightRevalidate.has(key)) return;
+  const p = fetchFn()
+    .then(data => cacheSet(key, data))
+    .catch(() => {}) // best-effort background refresh; a failure here just leaves the TTL cache cold
+    .finally(() => _inFlightRevalidate.delete(key));
+  _inFlightRevalidate.set(key, p);
+}
+
 // --- Users ---
 export async function getUserProfile(uid) {
   const key = `profile:${uid}`;
   const cached = cacheGet(key);
   if (cached !== undefined) return cached;
-  const snap = await getDoc(doc(db, 'users', uid));
+
+  const userRef = doc(db, 'users', uid);
+  // Instant-paint path: if this doc is already in the SDK's local IndexedDB cache (e.g. a
+  // returning visit on this device), return it immediately instead of waiting on the network,
+  // then revalidate against the server in the background so the *next* read within the TTL
+  // window gets the confirmed-fresh value.
+  try {
+    const cachedSnap = await getDocFromCache(userRef);
+    if (cachedSnap.exists()) {
+      const data = cachedSnap.data();
+      revalidate(key, async () => {
+        const snap = await getDoc(userRef);
+        return snap.exists() ? snap.data() : null;
+      });
+      return data;
+    }
+  } catch (e) {
+    // Nothing cached locally yet (true first visit for this doc) — fall through to network.
+  }
+
+  const snap = await getDoc(userRef);
   const data = snap.exists() ? snap.data() : null;
   cacheSet(key, data);
   return data;
@@ -376,15 +409,38 @@ export async function updateUserPlan(uid, { plan, customerLimit, productLimit, b
 }
 
 // --- Documents ---
+function mapAndSortDocs(snap) {
+  const res = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  res.sort((a, b) => b.date.toDate() - a.date.toDate());
+  return res;
+}
+
 export async function getDocuments(uid, filters = {}) {
   const key = `documents:${uid}:${filters.status || ''}`;
   const cached = cacheGet(key);
   if (cached !== undefined) return cached;
+
   const clauses = [where('uid', '==', uid)];
   if (filters.status) clauses.push(where('status', '==', filters.status));
-  const snap = await getDocs(query(collection(db, 'documents'), ...clauses));
-  const res = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  res.sort((a, b) => b.date.toDate() - a.date.toDate());
+  const q = query(collection(db, 'documents'), ...clauses);
+
+  // Same instant-paint-then-revalidate pattern as getUserProfile above. A genuinely empty
+  // result (new account, zero documents) is treated as a cache miss too, rather than trying
+  // to distinguish "never cached" from "confirmed empty" — new accounts just always pay one
+  // real fetch, which is a fine trade for the simplicity.
+  try {
+    const cachedSnap = await getDocsFromCache(q);
+    if (!cachedSnap.empty) {
+      const res = mapAndSortDocs(cachedSnap);
+      revalidate(key, async () => mapAndSortDocs(await getDocs(q)));
+      return res;
+    }
+  } catch (e) {
+    // Nothing cached locally yet — fall through to network.
+  }
+
+  const snap = await getDocs(q);
+  const res = mapAndSortDocs(snap);
   cacheSet(key, res);
   return res;
 }
