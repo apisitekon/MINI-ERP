@@ -60,6 +60,31 @@ service cloud.firestore {
         || request.resource.data[field] == 1;
     }
 
+    // ---- Multi-business (users/{uid}.businesses) ----
+    // Plan cap: an admin-set `businessLimit` wins; otherwise Pro = 3, everything else = 1.
+    // Keep in sync with PLANS in js/firebase-config.js.
+    function maxBusinesses(d) {
+      return ('businessLimit' in d) ? d.businessLimit
+        : ((('plan' in d) && d.plan == 'pro') ? 3 : 1);
+    }
+    // The list may be at most the plan's size. A write that doesn't grow the list is always
+    // allowed, so an account downgraded from Pro can still edit/trim its businesses and
+    // unrelated writes to the same doc (usage counters) keep working.
+    function validBusinesses() {
+      let d = request.resource.data;
+      let before = (resource != null && ('businesses' in resource.data))
+        ? resource.data.businesses.size() : 0;
+      return !('businesses' in d)
+        || (d.businesses is list
+            && (d.businesses.size() <= maxBusinesses(d) || d.businesses.size() <= before));
+    }
+    // A non-admin may never set or change their own businessLimit.
+    function businessLimitUnchanged() {
+      let has = 'businessLimit' in request.resource.data;
+      return !has || (('businessLimit' in resource.data)
+        && request.resource.data.businessLimit == resource.data.businessLimit);
+    }
+
     match /admins/{uid} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
@@ -77,7 +102,9 @@ service cloud.firestore {
         (!('customerLimit' in request.resource.data) || request.resource.data.customerLimit == 50) &&
         (!('productLimit' in request.resource.data) || request.resource.data.productLimit == 100) &&
         validNewCounter('customerCount') &&
-        validNewCounter('productCount')
+        validNewCounter('productCount') &&
+        !('businessLimit' in request.resource.data) &&
+        validBusinesses()
       );
 
       allow update: if isAdmin() || (
@@ -86,7 +113,9 @@ service cloud.firestore {
         unchangedOrDefault('customerLimit', 50) &&
         unchangedOrDefault('productLimit', 100) &&
         validCounterStep('customerCount') &&
-        validCounterStep('productCount')
+        validCounterStep('productCount') &&
+        businessLimitUnchanged() &&
+        validBusinesses()
       );
 
       allow delete: if isAdmin();
